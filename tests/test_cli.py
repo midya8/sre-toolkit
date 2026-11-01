@@ -157,6 +157,22 @@ class TestBurnCustomRules(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("No burn-rate rules firing.", out)
 
+    def test_json_output_with_firing(self):
+        payload = dict(self.SPEC, rules=[
+            {"name": "fast-page", "severity": "critical", "burn_threshold": 2.5,
+             "long_window_hours": 2, "short_window_hours": 0.25},
+        ])
+        code, out = _run(["burn", "--json"], payload)
+        self.assertEqual(code, 1)
+        data = json.loads(out)
+        self.assertEqual(data["slo"], 0.99)
+        self.assertEqual(data["firing"][0]["name"], "fast-page")
+
+    def test_json_output_quiet(self):
+        code, out = _run(["burn", "--json"], self.SPEC)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["firing"], [])
+
     def test_invalid_rule_returns_2(self):
         payload = dict(self.SPEC, rules=[{"name": "broken"}])
         code, _ = _run(["burn"], payload)
