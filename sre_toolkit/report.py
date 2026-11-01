@@ -9,17 +9,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .error_budget import compute_error_budget
+from .error_budget import compute_error_budget, time_to_exhaustion_days
 
 
 @dataclass(frozen=True)
 class SLOSnapshot:
-    """One SLO's observed window: name, target fraction, and event counts."""
+    """One SLO's observed window: name, target fraction, and event counts.
+
+    When ``window_days`` is set, the status line also projects when the
+    budget exhausts at the current burn.
+    """
 
     name: str
     slo: float
     total_events: int
     bad_events: int
+    window_days: float | None = None
+
+
+def _exhaustion_projection(snapshot: SLOSnapshot) -> str:
+    """Projection sentence for the status line, or empty when not applicable."""
+    if snapshot.window_days is None:
+        return ""
+    budget = compute_error_budget(
+        snapshot.slo, snapshot.total_events, snapshot.bad_events
+    )
+    days = time_to_exhaustion_days(budget, snapshot.window_days)
+    if days is None:
+        return " Zero burn: no exhaustion projected."
+    if days <= 0:
+        return ""
+    return f" At current burn the budget exhausts in ~{days:.1f} days."
 
 
 def _status_line(snapshot: SLOSnapshot) -> str:
@@ -33,14 +53,15 @@ def _status_line(snapshot: SLOSnapshot) -> str:
             f"- **{snapshot.name}**: error budget exhausted "
             f"({budget.consumed_fraction:.0%} consumed)."
         )
+    projection = _exhaustion_projection(snapshot)
     if budget.consumed_fraction >= 0.8:
         return (
             f"- **{snapshot.name}**: budget nearly exhausted "
-            f"({budget.consumed_fraction:.0%} consumed)."
+            f"({budget.consumed_fraction:.0%} consumed).{projection}"
         )
     return (
         f"- **{snapshot.name}**: healthy "
-        f"({budget.consumed_fraction:.0%} of budget consumed)."
+        f"({budget.consumed_fraction:.0%} of budget consumed).{projection}"
     )
 
 
