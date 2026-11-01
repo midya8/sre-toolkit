@@ -75,3 +75,30 @@ def render_slo_doc(definition: SLODefinition) -> str:
         lines.append("- _No alert thresholds defined._")
     lines.append("")
     return "\n".join(lines)
+
+
+def slo_doc_payload(definition: SLODefinition) -> dict:
+    """Return the machine-readable form of the rendered SLO document.
+
+    Same validation and derived budget math as :func:`render_slo_doc`,
+    for pipelines that consume the definition without parsing Markdown.
+    """
+    if not 0.0 < definition.target < 1.0:
+        raise ValueError(f"target must be between 0 and 1 exclusive, got {definition.target!r}")
+    if definition.window_days <= 0:
+        raise ValueError(f"window_days must be positive, got {definition.window_days!r}")
+
+    d = definition
+    return {
+        "name": d.name,
+        "service": d.service,
+        "target": d.target,
+        "window_days": d.window_days,
+        "sli": d.sli,
+        "description": d.description,
+        "alert_thresholds": list(d.alert_thresholds),
+        "error_budget": {
+            "budget_fraction": 1.0 - d.target,
+            "allowed_downtime_minutes": allowed_downtime_minutes(d.target, d.window_days),
+        },
+    }
