@@ -1,0 +1,8 @@
+{
+  "routes": {
+    "web": "frontend-oncall",
+    "api": "backend-oncall",
+    "db": "data-oncall"
+  },
+  "default": "sre-oncall"
+}
