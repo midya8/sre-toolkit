@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import statistics
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 @dataclass(frozen=True)
@@ -243,3 +243,100 @@ def summarize_by_service(incidents: list[Incident]) -> dict[str, "IncidentStats"
         if stats is not None:
             result[service] = stats
     return result
+
+
+def parse_action_item(raw: object, where: str = "action item") -> tuple[str, bool]:
+    """Normalize one action item to (text, done).
+
+    Accepts a plain string (an open item, the historical shape) or an
+    object like {"item": "...", "done": true} - also "task"/"text" for
+    the text key. Anything else is a ValueError naming the offender.
+    """
+    if isinstance(raw, str):
+        if not raw.strip():
+            raise ValueError(f"{where}: empty action item text")
+        return raw, False
+    if isinstance(raw, dict):
+        unknown = set(raw) - {"item", "task", "text", "done"}
+        if unknown:
+            raise ValueError(f"{where} has unknown keys: {sorted(unknown)}")
+        text = raw.get("item") or raw.get("task") or raw.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError(f"{where}: needs a non-empty 'item' text")
+        done = raw.get("done", False)
+        if not isinstance(done, bool):
+            raise ValueError(f"{where}: 'done' must be true or false")
+        return text, done
+    raise ValueError(f"{where} must be a string or an object")
+
+
+def action_item_followup(incidents: list[dict], now: datetime | None = None,
+                         stale_days: float = 14.0) -> dict:
+    """Follow-through report across incidents: which action items are still open.
+
+    An incident is "stale" when it was resolved more than ``stale_days``
+    ago and still has open items - the postmortem did its analysis but
+    the fixes never landed. Incidents whose resolved timestamp does not
+    parse report open items without an age. Returns per-incident detail
+    plus totals, ordered most-open-items first.
+    """
+    now = now or datetime.now(tz=timezone.utc)
+    entries = []
+    open_total = 0
+    stale_total = 0
+    for raw in incidents:
+        if not isinstance(raw, dict):
+            continue
+        title = str(raw.get("title", "(untitled incident)"))
+        items = raw.get("action_items") or []
+        open_items = []
+        for i, item_raw in enumerate(items):
+            text, done = parse_action_item(item_raw, f"{title!r} action item #{i + 1}")
+            if not done:
+                open_items.append(text)
+        if not open_items:
+            continue
+        resolved = _parse_timestamp(str(raw.get("resolved", "")))
+        age_days = None
+        stale = False
+        if resolved is not None:
+            if resolved.tzinfo is None:
+                resolved = resolved.replace(tzinfo=timezone.utc)
+            age_days = (now - resolved).total_seconds() / 86400.0
+            stale = age_days > stale_days
+        open_total += len(open_items)
+        stale_total += 1 if stale else 0
+        entries.append({
+            "title": title,
+            "open_items": open_items,
+            "open_count": len(open_items),
+            "days_since_resolved": None if age_days is None else round(age_days, 1),
+            "stale": stale,
+        })
+    entries.sort(key=lambda e: (-e["open_count"], e["title"]))
+    return {
+        "incidents_with_open_items": len(entries),
+        "open_items_total": open_total,
+        "stale_incidents": stale_total,
+        "stale_days": stale_days,
+        "incidents": entries,
+    }
+
+
+def format_action_item_followup(report: dict) -> str:
+    """Render the follow-through report as a plain-text block."""
+    lines = [
+        f"Action items: {report['open_items_total']} open across "
+        f"{report['incidents_with_open_items']} incidents "
+        f"({report['stale_incidents']} stale > {report['stale_days']:g} days)",
+    ]
+    for entry in report["incidents"]:
+        age = entry["days_since_resolved"]
+        age_text = "unknown age" if age is None else f"resolved {age:g}d ago"
+        flag = " STALE" if entry["stale"] else ""
+        lines.append(f"  {entry['title']} ({age_text}){flag}")
+        for item in entry["open_items"]:
+            lines.append(f"    - [ ] {item}")
+    if not report["incidents"]:
+        lines.append("  All recorded action items are done.")
+    return "\n".join(lines)
