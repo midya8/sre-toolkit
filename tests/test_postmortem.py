@@ -1,7 +1,8 @@
 import unittest
 from datetime import timedelta
 
-from sre_toolkit.postmortem import Incident, render_postmortem, response_metrics, summarize_incidents
+from sre_toolkit.postmortem import (Incident, render_postmortem, response_metrics,
+                                    summarize_by_severity, summarize_incidents)
 
 
 def sample_incident() -> Incident:
@@ -137,6 +138,22 @@ class TestSummarizeIncidents(unittest.TestCase):
         self.assertEqual(stats.skipped, 1)
         self.assertEqual(stats.mean_time_to_detect, timedelta(minutes=7))
         self.assertEqual(stats.p90_time_to_detect, timedelta(minutes=7))
+
+    def test_by_severity_groups_computable_incidents(self):
+        i1 = Incident("a", "high", "2026-10-30 14:05 UTC", "2026-10-30 14:12 UTC",
+                      "2026-10-30 15:40 UTC", (), "s", "i", "r")
+        i2 = Incident("b", "low", "2026-10-28 09:00 UTC", "2026-10-28 09:30 UTC",
+                      "2026-10-28 10:00 UTC", (), "s", "i", "r")
+        bad = Incident("c", "high", "unknown", "unknown", "unknown", (), "s", "i", "r")
+        groups = summarize_by_severity([i1, i2, bad])
+        self.assertEqual(set(groups), {"high", "low"})
+        self.assertEqual(groups["high"].incidents, 1)
+        self.assertEqual(groups["high"].mean_time_to_detect, timedelta(minutes=7))
+        self.assertEqual(groups["low"].mean_time_to_resolve, timedelta(minutes=30))
+
+    def test_by_severity_omits_severities_with_no_metrics(self):
+        bad = Incident("c", "high", "unknown", "unknown", "unknown", (), "s", "i", "r")
+        self.assertEqual(summarize_by_severity([bad]), {})
 
     def test_none_when_nothing_computable(self):
         bad = Incident("c", "low", "unknown", "unknown", "unknown", (), "s", "i", "r")
