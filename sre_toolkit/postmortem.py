@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import statistics
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -70,6 +71,43 @@ def response_metrics(incident: Incident) -> ResponseMetrics | None:
         time_to_detect=detected - started,
         time_to_resolve=resolved - detected,
         total_duration=resolved - started,
+    )
+
+
+@dataclass(frozen=True)
+class IncidentStats:
+    """Response-metric aggregates over a set of incidents.
+
+    ``skipped`` counts incidents whose timestamps did not yield metrics -
+    they are excluded from the aggregates, never silently averaged in.
+    """
+
+    incidents: int
+    skipped: int
+    mean_time_to_detect: timedelta
+    median_time_to_detect: timedelta
+    mean_time_to_resolve: timedelta
+    median_time_to_resolve: timedelta
+
+
+def summarize_incidents(incidents: list[Incident]) -> IncidentStats | None:
+    """Aggregate time-to-detect and time-to-resolve across incidents.
+
+    Incidents whose timestamps are unparseable or out of order are
+    skipped. Returns None when no incident yields computable metrics.
+    """
+    metrics = [m for m in (response_metrics(i) for i in incidents) if m is not None]
+    if not metrics:
+        return None
+    ttds = [m.time_to_detect for m in metrics]
+    ttrs = [m.time_to_resolve for m in metrics]
+    return IncidentStats(
+        incidents=len(metrics),
+        skipped=len(incidents) - len(metrics),
+        mean_time_to_detect=sum(ttds, timedelta()) / len(ttds),
+        median_time_to_detect=statistics.median(ttds),
+        mean_time_to_resolve=sum(ttrs, timedelta()) / len(ttrs),
+        median_time_to_resolve=statistics.median(ttrs),
     )
 
 
