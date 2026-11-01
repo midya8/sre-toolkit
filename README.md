@@ -20,6 +20,8 @@ need to be right. This toolkit makes them scriptable:
 - **Burn-rate alerts** - multi-window alerting (page at 14.4x over 1h+5m,
   ticket at 6x over 6h+30m) that only fires when burn is elevated on both the
   long and short window, so blips never page anyone.
+- **Status reports** - render a Markdown SLO status report (table plus
+  plain-language status lines) from a JSON list of SLO window snapshots.
 
 ## Usage
 
@@ -50,6 +52,7 @@ CLI:
 python -m sre_toolkit budget --slo 0.999 --total 10000 --bad 5
 python -m sre_toolkit downtime --slo 0.999 --days 30
 python -m sre_toolkit triage examples/alerts.json
+python -m sre_toolkit report examples/slo-snapshots.json
 ```
 
 ## Tests
@@ -58,8 +61,9 @@ python -m sre_toolkit triage examples/alerts.json
 python -m unittest discover -s tests -v
 ```
 
-38 tests cover the budget math (including boundary and validation cases),
-severity classification, dedupe, ordering, grouping, and postmortem rendering.
+46 tests cover the budget math (including boundary and validation cases),
+severity classification, dedupe, ordering, grouping, burn-rate rules,
+postmortem rendering, and report rendering.
 
 ## Layout
 
@@ -69,7 +73,8 @@ sre_toolkit/
   alert_triage.py   # severity rules, dedupe, severity ordering, grouping
   postmortem.py     # structured incident -> Markdown postmortem
   burn_alerts.py    # multi-window burn-rate alerting rules
-  __main__.py       # CLI: budget / downtime / triage
+  report.py         # Markdown SLO status report from window snapshots
+  __main__.py       # CLI: budget / downtime / triage / report
 tests/              # unittest suite, no external dependencies
 examples/           # sample alert input for the CLI
 ```
