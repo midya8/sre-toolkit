@@ -123,6 +123,29 @@ class TestTriageCLI(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("[critical] api", out)
 
+    def test_repeat_count_shown_for_duplicates(self):
+        alerts = self.ALERTS + [{"alert_id": "a4", "service": "api", "summary": "service   DOWN"}]
+        code, out = _run(["triage"], alerts)
+        self.assertEqual(code, 0)
+        self.assertIn("Service down (x2)", out)
+        self.assertNotIn("(x1)", out)
+
+    def test_repeat_count_in_json(self):
+        alerts = self.ALERTS + [{"alert_id": "a4", "service": "api", "summary": "service   DOWN"}]
+        code, out = _run(["triage", "--json"], alerts)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(len(data), 3)  # duplicate collapsed
+        self.assertEqual(data[0]["occurrences"], 2)
+        self.assertEqual(data[1]["occurrences"], 1)
+
+    def test_repeat_count_in_by_service(self):
+        alerts = self.ALERTS + [{"alert_id": "a4", "service": "api", "summary": "service   DOWN"}]
+        code, out = _run(["triage", "--by-service"], alerts)
+        self.assertEqual(code, 0)
+        self.assertIn("api (2 alerts, worst: critical)", out)
+        self.assertIn("Service down (x2)", out)
+
 
 class TestBurnCustomRules(unittest.TestCase):
     SPEC = {
