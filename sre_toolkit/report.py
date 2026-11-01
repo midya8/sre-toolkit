@@ -27,6 +27,56 @@ class SLOSnapshot:
     window_days: float | None = None
 
 
+def classify_status(snapshot: SLOSnapshot) -> str:
+    """One-word status: no_events, exhausted, nearly_exhausted, or healthy."""
+    if snapshot.total_events == 0:
+        return "no_events"
+    budget = compute_error_budget(
+        snapshot.slo, snapshot.total_events, snapshot.bad_events
+    )
+    if budget.remaining_fraction <= 0:
+        return "exhausted"
+    if budget.consumed_fraction >= 0.8:
+        return "nearly_exhausted"
+    return "healthy"
+
+
+def snapshot_summary(snapshot: SLOSnapshot) -> dict:
+    """Machine-readable budget detail for one snapshot.
+
+    ``error_rate``, ``consumed_fraction``, ``burn_rate`` and
+    ``remaining_fraction`` are None when no events were recorded;
+    ``exhaustion_days`` is None without a window or under zero burn.
+    """
+    status = classify_status(snapshot)
+    summary = {
+        "name": snapshot.name,
+        "slo": snapshot.slo,
+        "total_events": snapshot.total_events,
+        "bad_events": snapshot.bad_events,
+        "status": status,
+        "error_rate": None,
+        "consumed_fraction": None,
+        "burn_rate": None,
+        "remaining_fraction": None,
+        "exhaustion_days": None,
+    }
+    if snapshot.total_events == 0:
+        return summary
+    budget = compute_error_budget(
+        snapshot.slo, snapshot.total_events, snapshot.bad_events
+    )
+    summary.update({
+        "error_rate": snapshot.bad_events / snapshot.total_events,
+        "consumed_fraction": budget.consumed_fraction,
+        "burn_rate": budget.burn_rate,
+        "remaining_fraction": budget.remaining_fraction,
+    })
+    if snapshot.window_days is not None and status != "exhausted":
+        summary["exhaustion_days"] = time_to_exhaustion_days(budget, snapshot.window_days)
+    return summary
+
+
 def _exhaustion_projection(snapshot: SLOSnapshot) -> str:
     """Projection sentence for the status line, or empty when not applicable."""
     if snapshot.window_days is None:
