@@ -752,3 +752,67 @@ class TestBurnSuggest(unittest.TestCase):
         out = self._run()
         self.assertEqual(out.returncode, 2)
         self.assertIn("--suggest", out.stderr)
+
+
+class TestMetricsActionItems(unittest.TestCase):
+    INCIDENTS = [
+        {"title": "old outage", "severity": "high",
+         "started": "2026-10-01 10:00 UTC", "detected": "2026-10-01 10:05 UTC",
+         "resolved": "2026-10-01 11:00 UTC", "summary": "s", "impact": "i",
+         "root_cause": "r",
+         "action_items": ["add alerting", {"item": "file postmortem", "done": True}]},
+        {"title": "recent blip", "severity": "low",
+         "started": "unknown", "detected": "unknown", "resolved": "unknown",
+         "summary": "s", "impact": "i", "root_cause": "r",
+         "action_items": ["tweak dashboard"]},
+    ]
+
+    def test_text_lists_open_items_per_incident(self):
+        code, out = _run(["metrics", "--action-items"], self.INCIDENTS)
+        self.assertIn("Action items: 2 open across 2 incidents", out)
+        self.assertIn("old outage", out)
+        self.assertIn("- [ ] add alerting", out)
+        self.assertIn("- [ ] tweak dashboard", out)
+
+    def test_exit_1_when_open_items_stale(self):
+        code, out = _run(["metrics", "--action-items"], self.INCIDENTS)
+        self.assertEqual(code, 1)
+        self.assertIn("STALE", out)
+
+    def test_stale_days_override_changes_exit(self):
+        code, out = _run(["metrics", "--action-items", "--stale-days", "400"],
+                         self.INCIDENTS)
+        self.assertEqual(code, 0)
+        self.assertNotIn("STALE", out)
+
+    def test_json_block_and_stale_exit(self):
+        code, out = _run(["metrics", "--action-items", "--json"], self.INCIDENTS)
+        self.assertEqual(code, 1)
+        data = json.loads(out)
+        followup = data["action_items"]
+        self.assertEqual(followup["open_items_total"], 2)
+        self.assertEqual(followup["stale_incidents"], 1)
+        self.assertEqual(followup["incidents"][0]["title"], "old outage")
+
+    def test_bad_action_item_exits_2(self):
+        incidents = [dict(self.INCIDENTS[0], action_items=[{"done": True}])]
+        code, out = _run(["metrics", "--action-items"], incidents)
+        self.assertEqual(code, 2)
+
+    def test_no_flag_means_no_followup(self):
+        code, out = _run(["metrics"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        self.assertNotIn("Action items:", out)
+
+
+class TestMetricsActionItemsOnly(unittest.TestCase):
+    def test_all_timestamps_unparseable_still_reports_followup(self):
+        incidents = [
+            {"title": "mystery", "severity": "low", "started": "?", "detected": "?",
+             "resolved": "long ago", "summary": "s", "impact": "i", "root_cause": "r",
+             "action_items": ["follow up"]},
+        ]
+        code, out = _run(["metrics", "--action-items"], incidents)
+        self.assertEqual(code, 0)
+        self.assertIn("No incidents with parseable timestamps.", out)
+        self.assertIn("Action items: 1 open across 1 incidents", out)
