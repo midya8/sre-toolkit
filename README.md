@@ -28,7 +28,8 @@ need to be right. This toolkit makes them scriptable:
 - **Postmortems** - render a consistent Markdown postmortem from structured
   incident data, with timeline, action-item checklists, and response metrics
   (time to detect, time to resolve, total duration) computed automatically
-  from the incident timestamps when they are parseable. The `metrics` CLI
+  from the incident timestamps when they are parseable, also available as
+  `--json` for pipelines. The `metrics` CLI
   aggregates TTD and TTR across a list of incidents for MTTR tracking -
   mean, median and nearest-rank p90, with a per-severity breakdown because
   MTTR only means something split by severity - skipping incidents without
