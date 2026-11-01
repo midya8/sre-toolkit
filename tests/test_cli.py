@@ -164,6 +164,20 @@ class TestPostmortemCLI(unittest.TestCase):
         self.assertIn("# Postmortem: Outage", out)
 
 
+class TestSloDocCLI(unittest.TestCase):
+    def test_renders_doc(self):
+        code, out = _run(["slo-doc"], {
+            "name": "Checkout availability",
+            "service": "checkout-api",
+            "target": 0.999,
+            "window_days": 30,
+            "sli": "Share of requests without a 5xx.",
+        })
+        self.assertEqual(code, 0)
+        self.assertIn("# SLO: Checkout availability", out)
+        self.assertIn("_No alert thresholds defined._", out)
+
+
 class TestReportCLI(unittest.TestCase):
     def test_renders_report(self):
         code, out = _run(["report"], [
