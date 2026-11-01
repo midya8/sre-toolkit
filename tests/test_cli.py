@@ -327,6 +327,24 @@ class TestPostmortemCLI(unittest.TestCase):
         self.assertIn("# Postmortem: Outage", out)
         self.assertIn("SEV1", out)
 
+    def test_json_metrics(self):
+        code, out = _run(["postmortem", "--json"], self.PAYLOAD)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["title"], "Outage")
+        self.assertEqual(data["time_to_detect_minutes"], 7.0)
+        self.assertEqual(data["time_to_resolve_minutes"], 35.0)
+        self.assertEqual(data["total_duration_minutes"], 42.0)
+
+    def test_json_nulls_when_uncomputable(self):
+        payload = dict(self.PAYLOAD, started="unknown", detected="unknown",
+                       resolved="unknown")
+        code, out = _run(["postmortem", "--json"], payload)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertIsNone(data["time_to_detect_minutes"])
+        self.assertIsNone(data["total_duration_minutes"])
+
     def test_optional_fields_default(self):
         payload = {k: v for k, v in self.PAYLOAD.items()
                    if k not in ("services", "timeline", "action_items")}

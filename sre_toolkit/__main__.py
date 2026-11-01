@@ -24,7 +24,8 @@ from .error_budget import (
     compute_error_budget,
     time_to_exhaustion_days,
 )
-from .postmortem import Incident, _format_duration, render_postmortem, summarize_by_severity, summarize_incidents
+from .postmortem import (Incident, _format_duration, render_postmortem, response_metrics,
+                         summarize_by_severity, summarize_incidents)
 from .report import SLOSnapshot, render_report, snapshot_summary
 from .slo_doc import SLODefinition, render_slo_doc
 
@@ -252,7 +253,18 @@ def _incident_from(raw: dict) -> Incident:
 
 def _cmd_postmortem(args: argparse.Namespace) -> int:
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
-    print(render_postmortem(_incident_from(raw)), end="")
+    incident = _incident_from(raw)
+    if args.json:
+        metrics = response_metrics(incident)
+        print(json.dumps({
+            "title": incident.title,
+            "severity": incident.severity,
+            "time_to_detect_minutes": _minutes(metrics.time_to_detect) if metrics else None,
+            "time_to_resolve_minutes": _minutes(metrics.time_to_resolve) if metrics else None,
+            "total_duration_minutes": _minutes(metrics.total_duration) if metrics else None,
+        }, indent=2))
+        return 0
+    print(render_postmortem(incident), end="")
     return 0
 
 
@@ -378,6 +390,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("postmortem", help="render a Markdown postmortem from a JSON incident ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--json", action="store_true",
+                   help="emit the response metrics as JSON (durations in minutes)")
     p.set_defaults(func=_cmd_postmortem)
 
     p = sub.add_parser("metrics", help="aggregate TTD/TTR across a JSON list of incidents ('-' for stdin)")
