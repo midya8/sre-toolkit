@@ -28,8 +28,9 @@ need to be right. This toolkit makes them scriptable:
   (time to detect, time to resolve, total duration) computed automatically
   from the incident timestamps when they are parseable. The `metrics` CLI
   aggregates TTD and TTR across a list of incidents for MTTR tracking -
-  mean, median and nearest-rank p90 - skipping incidents without parseable
-  timestamps, with `--json` for dashboards.
+  mean, median and nearest-rank p90, with a per-severity breakdown because
+  MTTR only means something split by severity - skipping incidents without
+  parseable timestamps, with `--json` for dashboards.
 - **Burn-rate alerts** - multi-window alerting (page at 14.4x over 1h+5m,
   ticket at 6x over 6h+30m) that only fires when burn is elevated on both the
   long and short window, so blips never page anyone. The `burn` CLI accepts
