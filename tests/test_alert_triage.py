@@ -3,7 +3,7 @@ import unittest
 from sre_toolkit.alert_triage import (
     rules_from_dict,
     Alert, classify_severity, dedupe, dedupe_key, duplicate_counts, group_by_service,
-    inhibit_by_critical, top_talkers, triage,
+    inhibit_by_critical, severity_counts, top_talkers, triage,
 )
 
 
@@ -186,6 +186,23 @@ class TestTopTalkers(unittest.TestCase):
     def test_explicit_severity_kept(self):
         pairs = top_talkers([Alert("a", "web", "flapping", severity="high")])
         self.assertEqual(pairs[0][0].severity, "high")
+
+
+class TestSeverityCounts(unittest.TestCase):
+    def test_counts_ordered_most_severe_first(self):
+        alerts = triage([
+            Alert("a", "web", "Weekly report ready"),
+            Alert("b", "web", "Service down"),
+            Alert("c", "db", "Error rate elevated"),
+            Alert("d", "db", "service down"),
+        ])
+        self.assertEqual(severity_counts(alerts),
+                         {"critical": 2, "high": 1, "low": 1})
+
+    def test_empty_and_missing_severities_omitted(self):
+        self.assertEqual(severity_counts([]), {})
+        alerts = triage([Alert("a", "web", "Weekly report ready")])
+        self.assertEqual(severity_counts(alerts), {"low": 1})
 
 
 if __name__ == "__main__":
