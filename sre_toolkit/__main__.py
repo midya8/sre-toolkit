@@ -27,7 +27,7 @@ from .error_budget import (
 from .postmortem import (Incident, _format_duration, render_postmortem, response_metrics,
                          summarize_by_severity, summarize_by_week, summarize_incidents)
 from .report import SLOSnapshot, consumed_fraction, render_report, snapshot_summary
-from .slo_doc import SLODefinition, render_slo_doc
+from .slo_doc import SLODefinition, render_slo_doc, slo_doc_payload
 
 
 def _cmd_budget(args: argparse.Namespace) -> int:
@@ -362,7 +362,10 @@ def _cmd_slo_doc(args: argparse.Namespace) -> int:
         description=raw.get("description", ""),
         alert_thresholds=tuple(raw.get("alert_thresholds", ())),
     )
-    print(render_slo_doc(definition), end="")
+    if args.json:
+        print(json.dumps(slo_doc_payload(definition), indent=2))
+    else:
+        print(render_slo_doc(definition), end="")
     return 0
 
 
@@ -426,6 +429,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("slo-doc", help="render a Markdown SLO definition from a JSON spec ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--json", action="store_true",
+                   help="emit the definition and derived error budget as JSON instead of Markdown")
     p.set_defaults(func=_cmd_slo_doc)
 
     args = parser.parse_args(argv)
