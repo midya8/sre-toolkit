@@ -43,6 +43,31 @@ class TestBudgetCLI(unittest.TestCase):
              "--window-days", "30"])
         self.assertIn("not projected (zero burn)", out)
 
+    def test_json_output(self):
+        code, out = _run_args(
+            ["budget", "--slo", "0.999", "--total", "10000", "--bad", "5",
+             "--window-days", "30", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["total_events"], 10000)
+        self.assertEqual(data["bad_events"], 5)
+        self.assertFalse(data["budget_exhausted"])
+        self.assertAlmostEqual(data["burn_rate"], 0.5, places=6)
+        self.assertAlmostEqual(data["exhaustion_days"], 15.0, places=6)
+
+    def test_json_zero_burn_projects_null(self):
+        code, out = _run_args(
+            ["budget", "--slo", "0.999", "--total", "10000", "--bad", "0",
+             "--window-days", "30", "--json"])
+        self.assertEqual(code, 0)
+        self.assertIsNone(json.loads(out)["exhaustion_days"])
+
+    def test_json_exhausted_still_exits_1(self):
+        code, out = _run_args(
+            ["budget", "--slo", "0.999", "--total", "1000", "--bad", "10", "--json"])
+        self.assertEqual(code, 1)
+        self.assertTrue(json.loads(out)["budget_exhausted"])
+
     def test_exhausted_budget_exits_1(self):
         code, out = _run_args(
             ["budget", "--slo", "0.999", "--total", "1000", "--bad", "10",
@@ -62,6 +87,20 @@ class TestDowntimeCLI(unittest.TestCase):
         code, out = _run_args(["downtime", "--slo", "0.999", "--days", "30"])
         self.assertEqual(code, 0)
         self.assertIn("Allowed downtime: 43.2 minutes over 30 days", out)
+
+    def test_json_table(self):
+        code, out = _run_args(["downtime", "--slo", "0.999", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertAlmostEqual(data["allowed_downtime_minutes"]["30"], 43.2, places=6)
+        self.assertEqual(set(data["allowed_downtime_minutes"]), {"1", "7", "30", "90"})
+
+    def test_json_single_window(self):
+        code, out = _run_args(["downtime", "--slo", "0.999", "--days", "30", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["window_days"], 30.0)
+        self.assertAlmostEqual(data["allowed_downtime_minutes"], 43.2, places=6)
 
 
 class TestBurnCLI(unittest.TestCase):
