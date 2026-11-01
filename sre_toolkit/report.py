@@ -115,8 +115,27 @@ def _status_line(snapshot: SLOSnapshot) -> str:
     )
 
 
-def render_report(snapshots: list[SLOSnapshot]) -> str:
-    """Render snapshots as a Markdown SLO status report."""
+def consumed_fraction(snapshot: SLOSnapshot) -> float:
+    """Budget consumed for sort order; SLOs with no events sort last."""
+    if snapshot.total_events == 0:
+        return -1.0
+    return compute_error_budget(
+        snapshot.slo, snapshot.total_events, snapshot.bad_events
+    ).consumed_fraction
+
+
+def render_report(snapshots: list[SLOSnapshot], worst_first: bool = False) -> str:
+    """Render snapshots as a Markdown SLO status report.
+
+    With ``worst_first``, rows and status lines sort by budget consumed
+    (most consumed first) so a long fleet review surfaces the SLOs that
+    need action; input order is preserved otherwise.
+    """
+    ordered = (
+        sorted(snapshots, key=consumed_fraction, reverse=True)
+        if worst_first
+        else snapshots
+    )
     lines = [
         "# SLO status report",
         "",
@@ -127,7 +146,7 @@ def render_report(snapshots: list[SLOSnapshot]) -> str:
         lines.append("| _no SLOs_ | | | | |")
         lines.append("")
         return "\n".join(lines) + "\n"
-    for snap in snapshots:
+    for snap in ordered:
         if snap.total_events == 0:
             lines.append(f"| {snap.name} | {snap.slo:.2%} | n/a | n/a | n/a |")
             continue
@@ -140,5 +159,5 @@ def render_report(snapshots: list[SLOSnapshot]) -> str:
     lines.append("")
     lines.append("## Status")
     lines.append("")
-    lines.extend(_status_line(snap) for snap in snapshots)
+    lines.extend(_status_line(snap) for snap in ordered)
     return "\n".join(lines) + "\n"

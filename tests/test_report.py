@@ -39,6 +39,32 @@ class TestRenderReport(unittest.TestCase):
         ])
         self.assertLess(out.index("| API |"), out.index("| Worker |"))
 
+    def test_worst_first_sorts_by_budget_consumed(self):
+        out = render_report([
+            SLOSnapshot("API", 0.999, 10_000, 5),     # 50% consumed
+            SLOSnapshot("Worker", 0.99, 1000, 20),    # 200% consumed
+            SLOSnapshot("Web", 0.999, 10_000, 9),     # 90% consumed
+        ], worst_first=True)
+        self.assertLess(out.index("| Worker |"), out.index("| Web |"))
+        self.assertLess(out.index("| Web |"), out.index("| API |"))
+        # status lines follow the same order
+        self.assertLess(out.index("**Worker**"), out.index("**Web**"))
+        self.assertLess(out.index("**Web**"), out.index("**API**"))
+
+    def test_worst_first_puts_no_events_last(self):
+        out = render_report([
+            SLOSnapshot("Idle", 0.99, 0, 0),
+            SLOSnapshot("API", 0.999, 10_000, 5),
+        ], worst_first=True)
+        self.assertLess(out.index("| API |"), out.index("| Idle |"))
+
+    def test_worst_first_default_off(self):
+        out = render_report([
+            SLOSnapshot("API", 0.999, 10_000, 5),
+            SLOSnapshot("Worker", 0.99, 1000, 20),
+        ])
+        self.assertLess(out.index("| API |"), out.index("| Worker |"))
+
     def test_invalid_slo_rejected(self):
         with self.assertRaises(ValueError):
             render_report([SLOSnapshot("API", 1.5, 100, 1)])

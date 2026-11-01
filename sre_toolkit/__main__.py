@@ -26,7 +26,7 @@ from .error_budget import (
 )
 from .postmortem import (Incident, _format_duration, render_postmortem, response_metrics,
                          summarize_by_severity, summarize_incidents)
-from .report import SLOSnapshot, render_report, snapshot_summary
+from .report import SLOSnapshot, consumed_fraction, render_report, snapshot_summary
 from .slo_doc import SLODefinition, render_slo_doc
 
 
@@ -164,6 +164,8 @@ def _cmd_report(args: argparse.Namespace) -> int:
         and compute_error_budget(snap.slo, snap.total_events, snap.bad_events).remaining_fraction <= 0
         for snap in snapshots
     )
+    if args.worst_first:
+        snapshots.sort(key=consumed_fraction, reverse=True)
     if args.json:
         print(json.dumps({
             "slos": [snapshot_summary(snap) for snap in snapshots],
@@ -381,6 +383,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("file")
     p.add_argument("--json", action="store_true",
                    help="emit per-SLO budget details as JSON instead of Markdown")
+    p.add_argument("--worst-first", action="store_true",
+                   help="sort SLOs by budget consumed, most consumed first")
     p.set_defaults(func=_cmd_report)
 
     p = sub.add_parser("burn", help="evaluate multi-window burn-rate rules from a JSON file ('-' for stdin)")
