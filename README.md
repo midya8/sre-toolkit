@@ -49,7 +49,8 @@ for a in alerts:
 CLI:
 
 ```bash
-python -m sre_toolkit budget --slo 0.999 --total 10000 --bad 5
+python -m sre_toolkit budget --slo 0.999 --total 10000 --bad 5 --window-days 30
+python -m sre_toolkit downtime --slo 0.999          # 1/7/30/90-day table
 python -m sre_toolkit downtime --slo 0.999 --days 30
 python -m sre_toolkit triage examples/alerts.json
 python -m sre_toolkit report examples/slo-snapshots.json
@@ -63,7 +64,7 @@ python -m sre_toolkit postmortem examples/incident.json
 python -m unittest discover -s tests -v
 ```
 
-52 tests cover the budget math (including boundary and validation cases),
+58 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
 postmortem rendering, report rendering, and the CLI commands.
 
