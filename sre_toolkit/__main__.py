@@ -21,7 +21,8 @@ from .silences import apply_silences, load_silences
 from .alert_triage import (Alert, dedupe_key, duplicate_counts, group_by_service,
                            inhibit_by_critical, rules_from_dict, severity_counts,
                            top_talkers, triage)
-from .burn_alerts import BurnRule, BurnSample, evaluate_rules, suggest_rules
+from .burn_alerts import (DEFAULT_RULES, BurnRule, BurnSample,
+                          evaluate_rules, replay_rules, suggest_rules)
 from .error_budget import (
     allowed_downtime_minutes,
     compute_error_budget,
@@ -277,6 +278,8 @@ def _cmd_burn(args: argparse.Namespace) -> int:
               "policy template", file=sys.stderr)
         return 2
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
+    if args.replay:
+        return _burn_replay(args, raw)
     samples = [
         BurnSample(
             window_hours=float(item["window_hours"]),
@@ -315,6 +318,45 @@ def _cmd_burn(args: argparse.Namespace) -> int:
             f"on both {rule.long_window_hours:g}h and {rule.short_window_hours * 60:g}m windows"
         )
     return 1 if any(rule.severity == "critical" for rule in firing) else 0
+
+
+def _burn_replay(args: argparse.Namespace, raw: dict) -> int:
+    """burn --replay: run a timestamped series through the rules."""
+    try:
+        rules = _burn_rules(raw.get("rules"))
+        reports = replay_rules(float(raw["slo"]), raw.get("buckets", []),
+                               rules=rules if rules is not None else DEFAULT_RULES)
+    except (KeyError, TypeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    any_critical = any(r["firing_ticks"] and r["severity"] == "critical"
+                       for r in reports)
+    if args.json:
+        print(json.dumps({
+            "slo": float(raw["slo"]),
+            "buckets": len(raw["buckets"]),
+            "rules": [
+                {**{k: v for k, v in r.items() if k != "intervals"},
+                 "intervals": [
+                     {**iv,
+                      "start": iv["start"].isoformat(),
+                      "end": iv["end"].isoformat()}
+                     for iv in r["intervals"]
+                 ]}
+                for r in reports
+            ],
+        }, indent=2))
+        return 1 if any_critical else 0
+    print(f"Replay over {len(raw['buckets'])} buckets:")
+    for r in reports:
+        if not r["intervals"]:
+            print(f"[{r['severity']:8s}] {r['name']}: never fired")
+            continue
+        for iv in r["intervals"]:
+            print(f"[{r['severity']:8s}] {r['name']}: fired "
+                  f"{iv['start'].isoformat()} -> {iv['end'].isoformat()} "
+                  f"({iv['ticks']} tick{'s' if iv['ticks'] != 1 else ''})")
+    return 1 if any_critical else 0
 
 
 def _incident_from(raw: dict) -> Incident:
@@ -546,6 +588,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="with --suggest: the SLO the policy protects (default 0.999)")
     p.add_argument("--window-days", type=float, default=30.0,
                    help="with --suggest: the SLO window the policy covers (default 30)")
+    p.add_argument("--replay", action="store_true",
+                   help="treat the file as a time series of timestamped buckets and "
+                        "replay the rules over it, reporting each rule's firing intervals")
     p.set_defaults(func=_cmd_burn)
 
     p = sub.add_parser("postmortem", help="render a Markdown postmortem from a JSON incident ('-' for stdin)")
