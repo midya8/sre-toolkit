@@ -17,6 +17,9 @@ need to be right. This toolkit makes them scriptable:
   severity so the page-worthy problem is on top.
 - **Postmortems** - render a consistent Markdown postmortem from structured
   incident data, with timeline and action-item checklists.
+- **Burn-rate alerts** - multi-window alerting (page at 14.4x over 1h+5m,
+  ticket at 6x over 6h+30m) that only fires when burn is elevated on both the
+  long and short window, so blips never page anyone.
 
 ## Usage
 
@@ -55,7 +58,7 @@ python -m sre_toolkit triage examples/alerts.json
 python -m unittest discover -s tests -v
 ```
 
-28 tests cover the budget math (including boundary and validation cases),
+38 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, and postmortem rendering.
 
 ## Layout
@@ -65,6 +68,7 @@ sre_toolkit/
   error_budget.py   # SLO budget, burn rate, downtime, exhaustion projection
   alert_triage.py   # severity rules, dedupe, severity ordering, grouping
   postmortem.py     # structured incident -> Markdown postmortem
+  burn_alerts.py    # multi-window burn-rate alerting rules
   __main__.py       # CLI: budget / downtime / triage
 tests/              # unittest suite, no external dependencies
 examples/           # sample alert input for the CLI
