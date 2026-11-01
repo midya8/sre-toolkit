@@ -38,7 +38,12 @@ need to be right. This toolkit makes them scriptable:
   MTTR only means something split by severity - skipping incidents without
   parseable timestamps, with `--json` for dashboards. `--by-week` buckets
   the same aggregates by ISO week of resolution, answering "are we getting
-  faster?" as a trend instead of one flat number.
+  faster?" as a trend instead of one flat number. `metrics --action-items`
+  adds a follow-through report: incidents list `action_items` (plain strings
+  or `{"item": ..., "done": true}` objects), and the report groups open items
+  per incident with days since resolution, exits 1 when any incident resolved
+  more than `--stale-days` (default 14) ago still has open items, and surfaces
+  the same data as an `action_items` block in `--json`.
 - **Burn-rate alerts** - multi-window alerting (page at 14.4x over 1h+5m,
   ticket at 6x over 6h+30m) that only fires when burn is elevated on both the
   long and short window, so blips never page anyone. The `burn` CLI accepts
@@ -100,6 +105,7 @@ python -m sre_toolkit burn --suggest --slo 0.999           # policy template for
 python -m sre_toolkit postmortem examples/incident.json
 python -m sre_toolkit metrics examples/incidents.json
 python -m sre_toolkit metrics examples/incidents.json --by-service  # TTD/TTR per affected service
+python -m sre_toolkit metrics examples/incidents.json --action-items  # open action items, exit 1 when stale
 python -m sre_toolkit slo-doc examples/slo-definition.json
 python -m sre_toolkit slo-doc examples/slo-definition.json --json   # machine-readable definition
 ```
@@ -110,13 +116,13 @@ python -m sre_toolkit slo-doc examples/slo-definition.json --json   # machine-re
 python -m unittest discover -s tests -v
 ```
 
-210 tests cover the budget math (including boundary and validation cases),
+228 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, severity and noise
 roll-ups, silence validation, matching and expiry, burn-rate rules and
 policy suggestion,
 postmortem rendering, report rendering with fleet summaries, SLO document
 rendering (Markdown and JSON), metrics aggregation (per severity, per
-service, per week), and the CLI commands.
+service, per week), action-item follow-through, and the CLI commands.
 
 ## Layout
 
