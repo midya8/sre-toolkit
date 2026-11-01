@@ -22,7 +22,9 @@ need to be right. This toolkit makes them scriptable:
   long and short window, so blips never page anyone. The `burn` CLI accepts
   custom rules in its JSON spec when the defaults do not fit a service.
 - **Status reports** - render a Markdown SLO status report (table plus
-  plain-language status lines) from a JSON list of SLO window snapshots.
+  plain-language status lines) from a JSON list of SLO window snapshots;
+  exits 1 when any budget is exhausted, so it can gate a cron job or CI
+  pipeline.
 - **SLO documents** - render an SLO definition (target, window, SLI, error
   budget, alerting policy) as Markdown, so objectives live reviewably in
   the repo next to the service they cover.
@@ -69,7 +71,7 @@ python -m sre_toolkit slo-doc examples/slo-definition.json
 python -m unittest discover -s tests -v
 ```
 
-74 tests cover the budget math (including boundary and validation cases),
+76 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
 postmortem rendering, report rendering, and the CLI commands.
 

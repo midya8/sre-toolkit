@@ -215,6 +215,20 @@ class TestReportCLI(unittest.TestCase):
         self.assertIn("# SLO status report", out)
         self.assertIn("| api |", out)
 
+    def test_exit_1_when_any_budget_exhausted(self):
+        code, _ = _run(["report"], [
+            {"name": "api", "slo": 0.999, "total": 1000, "bad": 10},
+            {"name": "worker", "slo": 0.99, "total": 1000, "bad": 0},
+        ])
+        self.assertEqual(code, 1)
+
+    def test_exit_0_when_all_healthy(self):
+        code, _ = _run(["report"], [
+            {"name": "api", "slo": 0.999, "total": 1000, "bad": 0},
+            {"name": "idle", "slo": 0.99, "total": 0, "bad": 0},
+        ])
+        self.assertEqual(code, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
