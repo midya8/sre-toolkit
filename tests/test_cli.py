@@ -96,6 +96,45 @@ class TestBurnCLI(unittest.TestCase):
         self.assertIn("No burn-rate rules firing.", out)
 
 
+class TestBurnCustomRules(unittest.TestCase):
+    SPEC = {
+        "slo": 0.99,
+        "samples": [
+            {"window_hours": 2, "total": 100000, "bad": 3000},
+            {"window_hours": 0.25, "total": 12500, "bad": 400},
+        ],
+    }
+
+    def test_custom_rule_fires(self):
+        payload = dict(self.SPEC, rules=[
+            {"name": "fast-page", "severity": "critical", "burn_threshold": 2.5,
+             "long_window_hours": 2, "short_window_hours": 0.25},
+        ])
+        code, out = _run(["burn"], payload)
+        self.assertEqual(code, 1)
+        self.assertIn("[critical] fast-page", out)
+
+    def test_custom_rule_above_burn_does_not_fire(self):
+        payload = dict(self.SPEC, rules=[
+            {"name": "extreme", "severity": "critical", "burn_threshold": 50,
+             "long_window_hours": 2, "short_window_hours": 0.25},
+        ])
+        code, out = _run(["burn"], payload)
+        self.assertEqual(code, 0)
+        self.assertIn("No burn-rate rules firing.", out)
+
+    def test_custom_rules_replace_defaults(self):
+        # With the default 14.4x page rule this 3x-burn spec stays quiet.
+        code, out = _run(["burn"], self.SPEC)
+        self.assertEqual(code, 0)
+        self.assertIn("No burn-rate rules firing.", out)
+
+    def test_invalid_rule_returns_2(self):
+        payload = dict(self.SPEC, rules=[{"name": "broken"}])
+        code, _ = _run(["burn"], payload)
+        self.assertEqual(code, 2)
+
+
 class TestPostmortemCLI(unittest.TestCase):
     PAYLOAD = {
         "title": "Outage",
