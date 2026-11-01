@@ -1,6 +1,6 @@
 import unittest
 
-from sre_toolkit.report import SLOSnapshot, render_report, snapshot_summary
+from sre_toolkit.report import SLOSnapshot, fleet_summary, render_report, snapshot_summary
 
 
 class TestRenderReport(unittest.TestCase):
@@ -128,6 +128,43 @@ class TestExhaustionProjection(unittest.TestCase):
         snap = SLOSnapshot("api", 0.999, 250000, 120)
         out = render_report([snap])
         self.assertNotIn("At current burn", out)
+
+
+class TestFleetSummary(unittest.TestCase):
+    SNAPS = [
+        SLOSnapshot("healthy-api", 0.999, 10_000, 1),     # healthy
+        SLOSnapshot("risky-api", 0.999, 10_000, 9),       # nearly exhausted (90%)
+        SLOSnapshot("down-api", 0.999, 10_000, 20),       # exhausted
+        SLOSnapshot("quiet-api", 0.999, 0, 0),            # no events
+    ]
+
+    def test_counts_per_status_class(self):
+        summary = fleet_summary(self.SNAPS)
+        self.assertEqual(summary["slos"], 4)
+        self.assertEqual(summary["healthy"], 1)
+        self.assertEqual(summary["nearly_exhausted"], 1)
+        self.assertEqual(summary["exhausted"], 1)
+        self.assertEqual(summary["no_events"], 1)
+
+    def test_worst_slo_ignores_no_events(self):
+        summary = fleet_summary(self.SNAPS)
+        self.assertEqual(summary["worst_slo"], "down-api")
+        self.assertGreater(summary["worst_consumed_fraction"], 1.0)
+
+    def test_empty_fleet(self):
+        summary = fleet_summary([])
+        self.assertEqual(summary["slos"], 0)
+        self.assertIsNone(summary["worst_slo"])
+        self.assertIsNone(summary["worst_consumed_fraction"])
+
+    def test_render_summary_section(self):
+        out = render_report(self.SNAPS, include_summary=True)
+        self.assertIn("## Fleet summary", out)
+        self.assertIn("4 SLOs: 1 healthy, 1 nearly exhausted, 1 exhausted (1 without events)", out)
+        self.assertIn("- Worst: down-api (budget 200.0% consumed)", out)
+
+    def test_render_summary_off_by_default(self):
+        self.assertNotIn("Fleet summary", render_report(self.SNAPS))
 
 
 if __name__ == "__main__":
