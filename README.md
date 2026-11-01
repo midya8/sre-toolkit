@@ -53,6 +53,13 @@ need to be right. This toolkit makes them scriptable:
   template: the standard three-tier table (page at 2% of budget in 1h, fast
   ticket at 5% in 6h, slow ticket at 10% in 3d) with burn thresholds scaled
   to the window, ready to drop into a burn spec's `rules`.
+  `burn spec.json --replay` replays a time series of timestamped
+  total/bad buckets through the rules: at every bucket tick each rule's
+  long and short trailing windows are re-evaluated, and the report lists
+  every firing interval per rule (start, end, tick count) - the "would
+  this policy have paged us, and for how long" answer when tuning
+  thresholds against a past incident. Exits 1 when any critical rule
+  fired during the replay, and emits the intervals under `--json`.
 - **Status reports** - render a Markdown SLO status report (table plus
   plain-language status lines) from a JSON list of SLO window snapshots;
   snapshots carrying their `window_days` also get an exhaustion projection
@@ -101,6 +108,7 @@ python -m sre_toolkit triage examples/alerts.json --silences examples/silences.j
 python -m sre_toolkit report examples/slo-snapshots.json
 python -m sre_toolkit report examples/slo-snapshots.json --summary  # fleet roll-up: status counts, worst SLO
 python -m sre_toolkit burn examples/burn-samples.json      # exit 1 when a critical rule fires
+python -m sre_toolkit burn examples/burn-replay.json --replay  # firing intervals over a time series
 python -m sre_toolkit burn --suggest --slo 0.999           # policy template for your SLO
 python -m sre_toolkit postmortem examples/incident.json
 python -m sre_toolkit metrics examples/incidents.json
@@ -116,10 +124,10 @@ python -m sre_toolkit slo-doc examples/slo-definition.json --json   # machine-re
 python -m unittest discover -s tests -v
 ```
 
-228 tests cover the budget math (including boundary and validation cases),
+242 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, severity and noise
-roll-ups, silence validation, matching and expiry, burn-rate rules and
-policy suggestion,
+roll-ups, silence validation, matching and expiry, burn-rate rules, policy suggestion and
+time-series replay,
 postmortem rendering, report rendering with fleet summaries, SLO document
 rendering (Markdown and JSON), metrics aggregation (per severity, per
 service, per week), action-item follow-through, and the CLI commands.
