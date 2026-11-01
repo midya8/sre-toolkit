@@ -17,7 +17,11 @@ import sys
 
 from .alert_triage import Alert, triage
 from .burn_alerts import BurnSample, evaluate_rules
-from .error_budget import allowed_downtime_minutes, compute_error_budget
+from .error_budget import (
+    allowed_downtime_minutes,
+    compute_error_budget,
+    time_to_exhaustion_days,
+)
 from .postmortem import Incident, render_postmortem
 from .report import SLOSnapshot, render_report
 
@@ -29,12 +33,26 @@ def _cmd_budget(args: argparse.Namespace) -> int:
     print(f"Consumed:          {budget.consumed_fraction:.1%}")
     print(f"Remaining:         {budget.remaining_fraction:.1%}")
     print(f"Burn rate:         {budget.burn_rate:.2f}x")
+    if args.window_days is not None:
+        days = time_to_exhaustion_days(budget, args.window_days)
+        if days is None:
+            print("Exhaustion:        not projected (zero burn)")
+        elif days <= 0:
+            print("Exhaustion:        budget already exhausted")
+        else:
+            print(f"Exhaustion:        ~{days:.1f} days at current burn")
     return 0 if budget.remaining_fraction > 0 else 1
 
 
 def _cmd_downtime(args: argparse.Namespace) -> int:
-    minutes = allowed_downtime_minutes(args.slo, args.days)
-    print(f"Allowed downtime: {minutes:.1f} minutes over {args.days:g} days")
+    if args.days is not None:
+        minutes = allowed_downtime_minutes(args.slo, args.days)
+        print(f"Allowed downtime: {minutes:.1f} minutes over {args.days:g} days")
+        return 0
+    print(f"Allowed downtime for SLO {args.slo:.3%}:")
+    for window in (1, 7, 30, 90):
+        minutes = allowed_downtime_minutes(args.slo, window)
+        print(f"  {window:3d} days: {minutes:8.1f} minutes")
     return 0
 
 
@@ -110,11 +128,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--slo", type=float, required=True, help="SLO as a fraction, e.g. 0.999")
     p.add_argument("--total", type=int, required=True, help="total events in the window")
     p.add_argument("--bad", type=int, required=True, help="bad events in the window")
+    p.add_argument("--window-days", type=float, default=None,
+                   help="SLO window length; adds an exhaustion projection")
     p.set_defaults(func=_cmd_budget)
 
     p = sub.add_parser("downtime", help="allowed downtime minutes for an SLO")
     p.add_argument("--slo", type=float, required=True)
-    p.add_argument("--days", type=float, required=True)
+    p.add_argument("--days", type=float, default=None,
+                   help="window length in days; omit for a 1/7/30/90-day table")
     p.set_defaults(func=_cmd_downtime)
 
     p = sub.add_parser("triage", help="classify alerts from a JSON file ('-' for stdin)")
