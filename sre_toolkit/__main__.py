@@ -4,6 +4,7 @@ Subcommands:
     budget      error-budget math for one SLO window
     downtime    allowed downtime in minutes for an SLO over N days
     triage      classify a JSON list of alerts
+    report      render a Markdown SLO status report from a JSON list
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import sys
 
 from .alert_triage import Alert, triage
 from .error_budget import allowed_downtime_minutes, compute_error_budget
+from .report import SLOSnapshot, render_report
 
 
 def _cmd_budget(args: argparse.Namespace) -> int:
@@ -40,6 +42,21 @@ def _cmd_triage(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report(args: argparse.Namespace) -> int:
+    raw = json.load(sys.stdin if args.file == "-" else open(args.file))
+    snapshots = [
+        SLOSnapshot(
+            name=item["name"],
+            slo=float(item["slo"]),
+            total_events=int(item["total"]),
+            bad_events=int(item["bad"]),
+        )
+        for item in raw
+    ]
+    print(render_report(snapshots), end="")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sre_toolkit")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -58,6 +75,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("triage", help="classify alerts from a JSON file ('-' for stdin)")
     p.add_argument("file")
     p.set_defaults(func=_cmd_triage)
+
+    p = sub.add_parser("report", help="Markdown SLO status report from a JSON file ('-' for stdin)")
+    p.add_argument("file")
+    p.set_defaults(func=_cmd_report)
 
     args = parser.parse_args(argv)
     return args.func(args)
