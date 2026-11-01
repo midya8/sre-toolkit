@@ -1,6 +1,8 @@
 import unittest
 
-from sre_toolkit.alert_triage import Alert, classify_severity, dedupe, group_by_service, triage
+from sre_toolkit.alert_triage import (
+    Alert, classify_severity, dedupe, dedupe_key, duplicate_counts, group_by_service, triage,
+)
 
 
 class TestClassifySeverity(unittest.TestCase):
@@ -32,6 +34,27 @@ class TestDedupe(unittest.TestCase):
 
     def test_empty_input(self):
         self.assertEqual(dedupe([]), [])
+
+
+class TestDuplicateCounts(unittest.TestCase):
+    def test_counts_match_dedupe_survivors(self):
+        alerts = [
+            Alert("a1", "api", "Latency high"),
+            Alert("a2", "api", "latency   high"),
+            Alert("a3", "db", "Latency high"),
+        ]
+        counts = duplicate_counts(alerts)
+        self.assertEqual(counts[dedupe_key(alerts[0])], 2)
+        self.assertEqual(counts[dedupe_key(alerts[2])], 1)
+        self.assertEqual(set(counts), {dedupe_key(a) for a in dedupe(alerts)})
+
+    def test_unique_alerts_count_one(self):
+        alerts = [Alert("a1", "api", "Outage"), Alert("a2", "db", "Warning")]
+        counts = duplicate_counts(alerts)
+        self.assertTrue(all(n == 1 for n in counts.values()))
+
+    def test_empty_input(self):
+        self.assertEqual(duplicate_counts([]), {})
 
 
 class TestTriage(unittest.TestCase):
