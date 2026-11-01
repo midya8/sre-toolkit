@@ -17,6 +17,7 @@ import argparse
 import json
 import sys
 
+from .silences import apply_silences, load_silences
 from .alert_triage import (Alert, dedupe_key, duplicate_counts, group_by_service,
                            inhibit_by_critical, rules_from_dict, severity_counts,
                            top_talkers, triage)
@@ -107,6 +108,14 @@ def _cmd_triage(args: argparse.Namespace) -> int:
             print(f"error: bad rules file: {exc}", file=sys.stderr)
             return 2
     alerts = triage(incoming, rules=rules) if rules else triage(incoming)
+    silenced: list = []
+    if args.silences:
+        try:
+            silence_list = load_silences(json.load(open(args.silences)))
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            print(f"error: bad silences file: {exc}", file=sys.stderr)
+            return 2
+        alerts, silenced = apply_silences(alerts, silence_list)
     inhibited: list[Alert] = []
     if args.inhibit:
         alerts, inhibited = inhibit_by_critical(alerts)
@@ -132,6 +141,14 @@ def _cmd_triage(args: argparse.Namespace) -> int:
                 for a, n in (top_talkers(incoming, rules=rules) if rules
                              else top_talkers(incoming))
             ]
+        if silenced:
+            payload["silenced"] = [
+                {"alert_id": a.alert_id, "service": a.service,
+                 "summary": a.summary, "severity": a.severity,
+                 "occurrences": counts[dedupe_key(a)],
+                 "silenced_reason": silence.reason}
+                for a, silence in silenced
+            ]
         if args.inhibit:
             payload["inhibited"] = [
                 {"alert_id": a.alert_id, "service": a.service,
@@ -140,7 +157,7 @@ def _cmd_triage(args: argparse.Namespace) -> int:
                 for a in inhibited
             ]
             print(json.dumps(payload, indent=2))
-        elif args.top_talkers or args.by_severity:
+        elif args.top_talkers or args.by_severity or silenced:
             print(json.dumps(payload, indent=2))
         else:
             print(json.dumps(payload["alerts"], indent=2))
@@ -159,6 +176,8 @@ def _cmd_triage(args: argparse.Namespace) -> int:
               ", ".join(f"{sev} {n}" for sev, n in counts.items()) or "none")
         if args.inhibit and inhibited:
             print(f"({len(inhibited)} inhibited not counted)")
+        if silenced:
+            print(f"({len(silenced)} silenced not counted)")
         return 0
     if args.top_talkers:
         print("Top talkers (deduped, by occurrences):")
@@ -173,6 +192,11 @@ def _cmd_triage(args: argparse.Namespace) -> int:
               f"inhibited: symptoms of a critical on the same service)")
         for alert in inhibited:
             print(f"  [{alert.severity:8s}] {alert.service:20s} {alert.summary}{_suffix(alert)}")
+    if silenced:
+        print(f"({len(silenced)} alert{'' if len(silenced) == 1 else 's'} silenced)")
+        for alert, silence in silenced:
+            print(f"  [{alert.severity:8s}] {alert.service:20s} {alert.summary}{_suffix(alert)}"
+                  f" - silenced: {silence.reason}")
     return 0
 
 
@@ -451,6 +475,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", action="store_true", help="emit the triaged alerts as JSON")
     p.add_argument("--inhibit", action="store_true",
                    help="suppress lower-severity alerts on services with an active critical")
+    p.add_argument("--silences", metavar="FILE",
+                   help="silence file: JSON list of {service?, severity?, contains?, "
+                        "reason, until}; matching alerts move to a silenced section")
     p.set_defaults(func=_cmd_triage)
 
     p = sub.add_parser("report", help="Markdown SLO status report from a JSON file ('-' for stdin)")
