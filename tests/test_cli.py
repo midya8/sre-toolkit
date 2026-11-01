@@ -261,6 +261,20 @@ class TestReportCLI(unittest.TestCase):
         ])
         self.assertEqual(code, 1)
 
+    def test_window_days_adds_projection(self):
+        code, out = _run(["report"], [
+            {"name": "api", "slo": 0.999, "total": 250000, "bad": 120, "window_days": 30},
+        ])
+        self.assertEqual(code, 0)
+        self.assertIn("At current burn the budget exhausts in ~15.6 days.", out)
+
+    def test_no_window_days_keeps_plain_line(self):
+        code, out = _run(["report"], [
+            {"name": "api", "slo": 0.999, "total": 250000, "bad": 120},
+        ])
+        self.assertEqual(code, 0)
+        self.assertNotIn("At current burn", out)
+
     def test_exit_0_when_all_healthy(self):
         code, _ = _run(["report"], [
             {"name": "api", "slo": 0.999, "total": 1000, "bad": 0},

@@ -27,8 +27,9 @@ need to be right. This toolkit makes them scriptable:
   emits the firing rules as JSON (`--json`) for paging pipelines.
 - **Status reports** - render a Markdown SLO status report (table plus
   plain-language status lines) from a JSON list of SLO window snapshots;
-  exits 1 when any budget is exhausted, so it can gate a cron job or CI
-  pipeline.
+  snapshots carrying their `window_days` also get an exhaustion projection
+  ("budget exhausts in ~3.0 days at current burn"). Exits 1 when any budget
+  is exhausted, so it can gate a cron job or CI pipeline.
 - **SLO documents** - render an SLO definition (target, window, SLI, error
   budget, alerting policy) as Markdown, so objectives live reviewably in
   the repo next to the service they cover.

@@ -1,5 +1,23 @@
 [
-  {"name": "checkout-api", "slo": 0.999, "total": 250000, "bad": 120},
-  {"name": "search-api", "slo": 0.995, "total": 1200000, "bad": 5400},
-  {"name": "image-resize-worker", "slo": 0.99, "total": 0, "bad": 0}
+  {
+    "name": "checkout-api",
+    "slo": 0.999,
+    "total": 250000,
+    "bad": 120,
+    "window_days": 30
+  },
+  {
+    "name": "search-api",
+    "slo": 0.995,
+    "total": 1200000,
+    "bad": 5400,
+    "window_days": 30
+  },
+  {
+    "name": "image-resize-worker",
+    "slo": 0.99,
+    "total": 0,
+    "bad": 0,
+    "window_days": 30
+  }
 ]
