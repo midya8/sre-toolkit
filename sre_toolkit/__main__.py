@@ -25,7 +25,7 @@ from .error_budget import (
     time_to_exhaustion_days,
 )
 from .postmortem import Incident, _format_duration, render_postmortem, summarize_incidents
-from .report import SLOSnapshot, render_report
+from .report import SLOSnapshot, render_report, snapshot_summary
 from .slo_doc import SLODefinition, render_slo_doc
 
 
@@ -120,12 +120,18 @@ def _cmd_report(args: argparse.Namespace) -> int:
         )
         for item in raw
     ]
-    print(render_report(snapshots), end="")
     exhausted = any(
         snap.total_events > 0
         and compute_error_budget(snap.slo, snap.total_events, snap.bad_events).remaining_fraction <= 0
         for snap in snapshots
     )
+    if args.json:
+        print(json.dumps({
+            "slos": [snapshot_summary(snap) for snap in snapshots],
+            "exhausted": exhausted,
+        }, indent=2))
+    else:
+        print(render_report(snapshots), end="")
     return 1 if exhausted else 0
 
 
@@ -271,6 +277,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("report", help="Markdown SLO status report from a JSON file ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--json", action="store_true",
+                   help="emit per-SLO budget details as JSON instead of Markdown")
     p.set_defaults(func=_cmd_report)
 
     p = sub.add_parser("burn", help="evaluate multi-window burn-rate rules from a JSON file ('-' for stdin)")
