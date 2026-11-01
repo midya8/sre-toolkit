@@ -661,3 +661,69 @@ class TestMetricsByServiceCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTriageSilences(unittest.TestCase):
+    SILENCED = [
+        {"alert_id": "a1", "service": "web", "summary": "Weekly report ready"},
+        {"alert_id": "a2", "service": "api", "summary": "Service down"},
+    ]
+
+    def _silences_file(self, tmp):
+        import json as _json
+        from pathlib import Path as _Path
+        path = _Path(tmp) / "silences.json"
+        path.write_text(_json.dumps([
+            {"severity": "low", "reason": "known noise", "until": "2999-01-01T00:00:00Z"}]))
+        return str(path)
+
+    def test_silenced_alerts_move_to_their_own_section(self):
+        import json as _json, subprocess, sys
+        from pathlib import Path as _Path
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            alerts_path = _Path(tmp) / "alerts.json"
+            alerts_path.write_text(_json.dumps(self.SILENCED))
+            out = subprocess.run(
+                [sys.executable, "-m", "sre_toolkit", "triage", str(alerts_path),
+                 "--silences", self._silences_file(tmp)],
+                capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("1 alert silenced", out.stdout)
+        self.assertIn("known noise", out.stdout)
+        # the silenced low alert no longer appears in the main list
+        main_list = out.stdout.split("(1 alert silenced)")[0]
+        self.assertNotIn("Weekly report", main_list)
+        self.assertIn("Service down", main_list)
+
+    def test_silenced_in_json_payload(self):
+        import json as _json, subprocess, sys
+        from pathlib import Path as _Path
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            alerts_path = _Path(tmp) / "alerts.json"
+            alerts_path.write_text(_json.dumps(self.SILENCED))
+            out = subprocess.run(
+                [sys.executable, "-m", "sre_toolkit", "triage", str(alerts_path),
+                 "--silences", self._silences_file(tmp), "--json"],
+                capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0)
+        payload = _json.loads(out.stdout)
+        self.assertEqual(len(payload["alerts"]), 1)
+        self.assertEqual(payload["silenced"][0]["silenced_reason"], "known noise")
+
+    def test_bad_silences_file_exit_2(self):
+        import json as _json, subprocess, sys
+        from pathlib import Path as _Path
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            alerts_path = _Path(tmp) / "alerts.json"
+            alerts_path.write_text(_json.dumps(self.SILENCED))
+            bad = _Path(tmp) / "bad.json"
+            bad.write_text(_json.dumps([{"reason": "r"}]))  # no 'until'
+            out = subprocess.run(
+                [sys.executable, "-m", "sre_toolkit", "triage", str(alerts_path),
+                 "--silences", str(bad)],
+                capture_output=True, text=True)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("bad silences file", out.stderr)
