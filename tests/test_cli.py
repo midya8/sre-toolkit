@@ -245,6 +245,27 @@ class TestSloDocCLI(unittest.TestCase):
         self.assertIn("_No alert thresholds defined._", out)
 
 
+class TestMetricsCLI(unittest.TestCase):
+    INCIDENTS = [
+        {"title": "a", "severity": "high", "started": "2026-10-30 14:05 UTC",
+         "detected": "2026-10-30 14:12 UTC", "resolved": "2026-10-30 15:40 UTC",
+         "summary": "s", "impact": "i", "root_cause": "r"},
+        {"title": "b", "severity": "low", "started": "unknown", "detected": "unknown",
+         "resolved": "unknown", "summary": "s", "impact": "i", "root_cause": "r"},
+    ]
+
+    def test_aggregates_with_skip_note(self):
+        code, out = _run(["metrics"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        self.assertIn("Incidents analyzed: 1 (1 skipped, timestamps unparseable)", out)
+        self.assertIn("Time to detect:  mean 7 minutes, median 7 minutes", out)
+        self.assertIn("Time to resolve: mean 1 hour 28 minutes, median 1 hour 28 minutes", out)
+
+    def test_exit_2_when_nothing_computable(self):
+        code, out = _run(["metrics"], [self.INCIDENTS[1]])
+        self.assertEqual(code, 2)
+
+
 class TestReportCLI(unittest.TestCase):
     def test_renders_report(self):
         code, out = _run(["report"], [
