@@ -139,6 +139,31 @@ class TestTriageCLI(unittest.TestCase):
         self.assertEqual(data[0]["occurrences"], 2)
         self.assertEqual(data[1]["occurrences"], 1)
 
+    def test_inhibit_flag_suppresses_symptoms(self):
+        # api has a critical, so its high-severity alerts are inhibited;
+        # web's low alert stays (no critical on web)
+        code, out = _run(["triage", "--inhibit"], self.ALERTS)
+        self.assertEqual(code, 0)
+        kept = out.split("(1 alert inhibited")[0]
+        self.assertIn("[critical] api", kept)
+        self.assertIn("[low     ] web", kept)
+        self.assertNotIn("Error rate elevated", kept)
+        self.assertIn("(1 alert inhibited: symptoms of a critical on the same service)", out)
+        self.assertIn("Error rate elevated", out)
+
+    def test_inhibit_json_separates_inhibited(self):
+        code, out = _run(["triage", "--inhibit", "--json"], self.ALERTS)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(len(data["alerts"]), 2)
+        self.assertEqual(len(data["inhibited"]), 1)
+        self.assertEqual(data["inhibited"][0]["alert_id"], "a3")
+
+    def test_json_without_inhibit_stays_a_list(self):
+        code, out = _run(["triage", "--json"], self.ALERTS)
+        self.assertEqual(code, 0)
+        self.assertIsInstance(json.loads(out), list)
+
     def test_repeat_count_in_by_service(self):
         alerts = self.ALERTS + [{"alert_id": "a4", "service": "api", "summary": "service   DOWN"}]
         code, out = _run(["triage", "--by-service"], alerts)
