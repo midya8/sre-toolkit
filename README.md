@@ -11,8 +11,10 @@ math, alert triage, and postmortem generation. Standard library only - no
 The math and the documents are the boring parts of incident work that still
 need to be right. This toolkit makes them scriptable:
 
-- **Error budgets** - compute budget fraction, consumed share, burn rate and
-  allowed downtime for an SLO, with input validation instead of silent garbage.
+- **Error budgets** - compute budget fraction, consumed share, burn rate,
+  allowed downtime, and how many bad events the window still affords
+  ("5 of 10 allowed") for an SLO, with input validation instead of silent
+  garbage.
   `budget` exits 1 when the budget is exhausted (a scriptable health gate)
   and both `budget` and `downtime` emit `--json` for pipelines.
 - **Alert triage** - classify alerts by keyword rules, dedupe repeats while
