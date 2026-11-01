@@ -224,13 +224,40 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
     if stats is None:
         print("error: no incidents with computable response metrics", file=sys.stderr)
         return 2
+    if args.json:
+        print(json.dumps(_metrics_summary(stats), indent=2))
+        return 0
     skipped = f" ({stats.skipped} skipped, timestamps unparseable)" if stats.skipped else ""
     print(f"Incidents analyzed: {stats.incidents}{skipped}")
     print(f"Time to detect:  mean {_format_duration(stats.mean_time_to_detect)}, "
-          f"median {_format_duration(stats.median_time_to_detect)}")
+          f"median {_format_duration(stats.median_time_to_detect)}, "
+          f"p90 {_format_duration(stats.p90_time_to_detect)}")
     print(f"Time to resolve: mean {_format_duration(stats.mean_time_to_resolve)}, "
-          f"median {_format_duration(stats.median_time_to_resolve)}")
+          f"median {_format_duration(stats.median_time_to_resolve)}, "
+          f"p90 {_format_duration(stats.p90_time_to_resolve)}")
     return 0
+
+
+def _minutes(delta) -> float:
+    return round(delta.total_seconds() / 60, 2)
+
+
+def _metrics_summary(stats) -> dict:
+    """Machine-readable incident metrics - durations in minutes."""
+    return {
+        "incidents": stats.incidents,
+        "skipped": stats.skipped,
+        "time_to_detect_minutes": {
+            "mean": _minutes(stats.mean_time_to_detect),
+            "median": _minutes(stats.median_time_to_detect),
+            "p90": _minutes(stats.p90_time_to_detect),
+        },
+        "time_to_resolve_minutes": {
+            "mean": _minutes(stats.mean_time_to_resolve),
+            "median": _minutes(stats.median_time_to_resolve),
+            "p90": _minutes(stats.p90_time_to_resolve),
+        },
+    }
 
 
 def _cmd_slo_doc(args: argparse.Namespace) -> int:
@@ -292,6 +319,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("metrics", help="aggregate TTD/TTR across a JSON list of incidents ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--json", action="store_true",
+                   help="emit the aggregates as JSON (durations in minutes)")
     p.set_defaults(func=_cmd_metrics)
 
     p = sub.add_parser("slo-doc", help="render a Markdown SLO definition from a JSON spec ('-' for stdin)")
