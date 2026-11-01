@@ -307,6 +307,31 @@ class TestReportCLI(unittest.TestCase):
         ])
         self.assertEqual(code, 1)
 
+    def test_json_output_shape(self):
+        code, out = _run(["report", "--json"], [
+            {"name": "api", "slo": 0.999, "total": 250000, "bad": 120, "window_days": 30},
+            {"name": "idle", "slo": 0.99, "total": 0, "bad": 0},
+        ])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertFalse(data["exhausted"])
+        self.assertEqual(len(data["slos"]), 2)
+        api, idle = data["slos"]
+        self.assertEqual(api["status"], "healthy")
+        self.assertAlmostEqual(api["burn_rate"], 0.48)
+        self.assertAlmostEqual(api["exhaustion_days"], 15.6)
+        self.assertEqual(idle["status"], "no_events")
+        self.assertIsNone(idle["error_rate"])
+
+    def test_json_keeps_exit_1_when_exhausted(self):
+        code, out = _run(["report", "--json"], [
+            {"name": "api", "slo": 0.999, "total": 1000, "bad": 10},
+        ])
+        self.assertEqual(code, 1)
+        data = json.loads(out)
+        self.assertTrue(data["exhausted"])
+        self.assertEqual(data["slos"][0]["status"], "exhausted")
+
     def test_window_days_adds_projection(self):
         code, out = _run(["report"], [
             {"name": "api", "slo": 0.999, "total": 250000, "bad": 120, "window_days": 30},
