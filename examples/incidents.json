@@ -1,0 +1,35 @@
+[
+  {
+    "title": "Checkout latency spike during deploy",
+    "severity": "SEV2",
+    "started": "2026-10-28 14:05 UTC",
+    "detected": "2026-10-28 14:12 UTC",
+    "resolved": "2026-10-28 14:47 UTC",
+    "services": ["checkout-api", "payments-db"],
+    "summary": "Checkout p99 latency rose from 300ms to 4.2s for 42 minutes during a schema migration.",
+    "impact": "2.1% of checkout attempts timed out; no payments were double-charged.",
+    "root_cause": "A blocking index build on payments-db during the deploy serialized write queries."
+  },
+  {
+    "title": "Cache fleet OOM restarts",
+    "severity": "SEV3",
+    "started": "2026-10-29 03:20 UTC",
+    "detected": "2026-10-29 03:44 UTC",
+    "resolved": "2026-10-29 04:15 UTC",
+    "services": ["cache"],
+    "summary": "Rolling OOM kills on the cache fleet raised tail latencies for 55 minutes.",
+    "impact": "p99 API latency up 40%; no user-facing errors.",
+    "root_cause": "A memory-hungry key pattern deployed the previous evening."
+  },
+  {
+    "title": "Legacy billing outage (pre-instrumentation)",
+    "severity": "SEV1",
+    "started": "unknown",
+    "detected": "unknown",
+    "resolved": "unknown",
+    "services": ["billing"],
+    "summary": "Billing was down before timestamped alerting existed.",
+    "impact": "Unknown.",
+    "root_cause": "Unknown."
+  }
+]
