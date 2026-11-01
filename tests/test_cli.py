@@ -283,8 +283,24 @@ class TestMetricsCLI(unittest.TestCase):
         code, out = _run(["metrics"], self.INCIDENTS)
         self.assertEqual(code, 0)
         self.assertIn("Incidents analyzed: 1 (1 skipped, timestamps unparseable)", out)
-        self.assertIn("Time to detect:  mean 7 minutes, median 7 minutes", out)
-        self.assertIn("Time to resolve: mean 1 hour 28 minutes, median 1 hour 28 minutes", out)
+        self.assertIn("Time to detect:  mean 7 minutes, median 7 minutes, p90 7 minutes", out)
+        self.assertIn("Time to resolve: mean 1 hour 28 minutes, median 1 hour 28 minutes, "
+                      "p90 1 hour 28 minutes", out)
+
+    def test_json_output(self):
+        code, out = _run(["metrics", "--json"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["incidents"], 1)
+        self.assertEqual(data["skipped"], 1)
+        self.assertEqual(data["time_to_detect_minutes"],
+                         {"mean": 7.0, "median": 7.0, "p90": 7.0})
+        self.assertEqual(data["time_to_resolve_minutes"],
+                         {"mean": 88.0, "median": 88.0, "p90": 88.0})
+
+    def test_json_exit_2_when_nothing_computable(self):
+        code, out = _run(["metrics", "--json"], [self.INCIDENTS[1]])
+        self.assertEqual(code, 2)
 
     def test_exit_2_when_nothing_computable(self):
         code, out = _run(["metrics"], [self.INCIDENTS[1]])
