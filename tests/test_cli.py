@@ -26,6 +26,18 @@ def _run(argv, payload=None):
 
 
 class TestBudgetCLI(unittest.TestCase):
+    def test_bad_event_counts_in_text(self):
+        code, out = _run_args(["budget", "--slo", "0.999", "--total", "10000", "--bad", "5"])
+        self.assertEqual(code, 0)
+        self.assertIn("Bad events:        5 of 10 allowed (5 left)", out)
+
+    def test_bad_event_counts_in_json(self):
+        code, out = _run_args(["budget", "--slo", "0.999", "--total", "10000", "--bad", "5", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["allowed_bad_events"], 10)
+        self.assertEqual(data["remaining_bad_events"], 5)
+
     def test_exhaustion_projection(self):
         code, out = _run_args(
             ["budget", "--slo", "0.999", "--total", "10000", "--bad", "5",

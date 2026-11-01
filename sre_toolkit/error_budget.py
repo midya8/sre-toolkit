@@ -26,6 +26,9 @@ class ErrorBudget:
         consumed_fraction: Share of the budget already consumed (0-1+).
         burn_rate: Current consumption speed relative to budget pace.
         remaining_fraction: Budget still available (may be negative).
+        allowed_bad_events: Bad events the window's budget affords (floored).
+        remaining_bad_events: Bad events left before the budget is gone
+            (negative when already overspent) - "how many more can we afford?".
     """
 
     slo: float
@@ -35,6 +38,8 @@ class ErrorBudget:
     consumed_fraction: float
     burn_rate: float
     remaining_fraction: float
+    allowed_bad_events: int
+    remaining_bad_events: int
 
 
 def _validate(slo: float, total_events: int, bad_events: int) -> None:
@@ -54,6 +59,7 @@ def compute_error_budget(slo: float, total_events: int, bad_events: int) -> Erro
     budget_fraction = 1.0 - slo
     error_ratio = bad_events / total_events
     consumed = error_ratio / budget_fraction
+    allowed = int(budget_fraction * total_events)
     return ErrorBudget(
         slo=slo,
         total_events=total_events,
@@ -62,6 +68,8 @@ def compute_error_budget(slo: float, total_events: int, bad_events: int) -> Erro
         consumed_fraction=consumed,
         burn_rate=consumed,
         remaining_fraction=1.0 - consumed,
+        allowed_bad_events=allowed,
+        remaining_bad_events=allowed - bad_events,
     )
 
 

@@ -40,6 +40,8 @@ def _cmd_budget(args: argparse.Namespace) -> int:
             "consumed_fraction": budget.consumed_fraction,
             "burn_rate": budget.burn_rate,
             "remaining_fraction": budget.remaining_fraction,
+            "allowed_bad_events": budget.allowed_bad_events,
+            "remaining_bad_events": budget.remaining_bad_events,
             "budget_exhausted": budget.remaining_fraction <= 0,
         }
         if args.window_days is not None:
@@ -53,6 +55,8 @@ def _cmd_budget(args: argparse.Namespace) -> int:
     print(f"Consumed:          {budget.consumed_fraction:.1%}")
     print(f"Remaining:         {budget.remaining_fraction:.1%}")
     print(f"Burn rate:         {budget.burn_rate:.2f}x")
+    print(f"Bad events:        {budget.bad_events} of {budget.allowed_bad_events} allowed "
+          f"({budget.remaining_bad_events} left)")
     if args.window_days is not None:
         days = time_to_exhaustion_days(budget, args.window_days)
         if days is None:
