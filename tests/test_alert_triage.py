@@ -1,7 +1,8 @@
 import unittest
 
 from sre_toolkit.alert_triage import (
-    Alert, classify_severity, dedupe, dedupe_key, duplicate_counts, group_by_service, triage,
+    Alert, classify_severity, dedupe, dedupe_key, duplicate_counts, group_by_service,
+    inhibit_by_critical, triage,
 )
 
 
@@ -55,6 +56,37 @@ class TestDuplicateCounts(unittest.TestCase):
 
     def test_empty_input(self):
         self.assertEqual(duplicate_counts([]), {})
+
+
+class TestInhibitByCritical(unittest.TestCase):
+    ALERTS = [
+        Alert("a1", "api", "Outage", severity="critical"),
+        Alert("a2", "api", "Error rate elevated", severity="high"),
+        Alert("a3", "api", "Disk warning", severity="medium"),
+        Alert("a4", "web", "Weekly report", severity="low"),
+    ]
+
+    def test_lower_severities_suppressed_on_critical_service(self):
+        kept, inhibited = inhibit_by_critical(self.ALERTS)
+        self.assertEqual([a.alert_id for a in kept], ["a1", "a4"])
+        self.assertEqual([a.alert_id for a in inhibited], ["a2", "a3"])
+
+    def test_nothing_inhibited_without_critical(self):
+        alerts = [Alert("a1", "api", "Warning", severity="medium"),
+                  Alert("a2", "db", "Slow", severity="low")]
+        kept, inhibited = inhibit_by_critical(alerts)
+        self.assertEqual(kept, alerts)
+        self.assertEqual(inhibited, [])
+
+    def test_critical_on_other_service_does_not_inhibit(self):
+        alerts = [Alert("a1", "db", "Outage", severity="critical"),
+                  Alert("a2", "api", "Error rate elevated", severity="high")]
+        kept, inhibited = inhibit_by_critical(alerts)
+        self.assertEqual(len(kept), 2)
+        self.assertEqual(inhibited, [])
+
+    def test_empty_input(self):
+        self.assertEqual(inhibit_by_critical([]), ([], []))
 
 
 class TestTriage(unittest.TestCase):
