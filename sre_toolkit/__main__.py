@@ -28,6 +28,7 @@ from .error_budget import (
     time_to_exhaustion_days,
 )
 from .postmortem import (Incident, _format_duration, render_postmortem, response_metrics,
+                         action_item_followup, format_action_item_followup,
                          summarize_by_severity, summarize_by_service, summarize_by_week,
                          summarize_incidents)
 from .report import (SLOSnapshot, consumed_fraction, fleet_summary, render_report,
@@ -352,8 +353,15 @@ def _cmd_postmortem(args: argparse.Namespace) -> int:
 def _cmd_metrics(args: argparse.Namespace) -> int:
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
     incidents = [_incident_from(item) for item in raw]
+    followup = None
+    if args.action_items:
+        try:
+            followup = action_item_followup(raw, stale_days=args.stale_days)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     stats = summarize_incidents(incidents)
-    if stats is None:
+    if stats is None and followup is None:
         print("error: no incidents with computable response metrics", file=sys.stderr)
         return 2
     if args.json:
@@ -375,8 +383,14 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
                  "mean_time_to_resolve_minutes": _minutes(group.mean_time_to_resolve)}
                 for label, group in summarize_by_week(incidents)
             ]
+        if followup is not None:
+            summary["action_items"] = followup
         print(json.dumps(summary, indent=2))
-        return 0
+        return 1 if (followup is not None and followup["stale_incidents"]) else 0
+    if stats is None:
+        print("No incidents with parseable timestamps.")
+        print(format_action_item_followup(followup))
+        return 1 if followup["stale_incidents"] else 0
     skipped = f" ({stats.skipped} skipped, timestamps unparseable)" if stats.skipped else ""
     print(f"Incidents analyzed: {stats.incidents}{skipped}")
     print(f"Time to detect:  mean {_format_duration(stats.mean_time_to_detect)}, "
@@ -408,6 +422,10 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
                 print(f"  {label}: n={group.incidents}, "
                       f"mean TTD {_format_duration(group.mean_time_to_detect)}, "
                       f"mean TTR {_format_duration(group.mean_time_to_resolve)}")
+    if followup is not None:
+        print()
+        print(format_action_item_followup(followup))
+        return 1 if followup["stale_incidents"] else 0
     return 0
 
 
@@ -489,6 +507,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("file")
     p.add_argument("--rules", metavar="FILE",
                    help="custom severity rules: JSON object mapping severity to keywords")
+    p.add_argument("--action-items", action="store_true",
+                   help="follow-through report: open action items per incident; "
+                        "exits 1 when any incident resolved > --stale-days ago still has open items")
+    p.add_argument("--stale-days", type=float, default=14.0,
+                   help="with --action-items: days after resolution before open items go stale")
     p.add_argument("--by-service", action="store_true",
                    help="group output by service with counts and worst severity")
     p.add_argument("--top-talkers", action="store_true",
@@ -535,6 +558,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("file")
     p.add_argument("--by-week", action="store_true",
                    help="also bucket the aggregates by ISO week of resolution (trend view)")
+    p.add_argument("--action-items", action="store_true",
+                   help="follow-through report: open action items per incident; "
+                        "exits 1 when any incident resolved > --stale-days ago still has open items")
+    p.add_argument("--stale-days", type=float, default=14.0,
+                   help="with --action-items: days after resolution before open items go stale")
     p.add_argument("--by-service", action="store_true",
                    help="also aggregate per affected service (incidents count toward each service they list)")
     p.add_argument("--json", action="store_true",
