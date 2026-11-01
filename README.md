@@ -18,7 +18,9 @@ need to be right. This toolkit makes them scriptable:
   in JSON), sort by severity so the page-worthy problem is on top, and
   `--inhibit` suppresses lower-severity symptoms on a service with an active
   critical, the way Alertmanager inhibit rules keep a known outage from
-  paging for every symptom.
+  paging for every symptom. `--rules rules.json` swaps the built-in
+  keywords for a team's own vocabulary (a JSON object mapping severity to
+  keywords).
 - **Postmortems** - render a consistent Markdown postmortem from structured
   incident data, with timeline, action-item checklists, and response metrics
   (time to detect, time to resolve, total duration) computed automatically
