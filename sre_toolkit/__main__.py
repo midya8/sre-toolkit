@@ -19,7 +19,8 @@ import sys
 
 from .silences import apply_silences, load_silences
 from .alert_triage import (Alert, dedupe_key, duplicate_counts, group_by_service,
-                           inhibit_by_critical, rules_from_dict, severity_counts,
+                           inhibit_by_critical, load_routes, owner_rollup,
+                           route_owner, rules_from_dict, severity_counts,
                            top_talkers, triage)
 from .burn_alerts import (DEFAULT_RULES, BurnRule, BurnSample,
                           evaluate_rules, replay_rules, suggest_rules)
@@ -121,6 +122,19 @@ def _cmd_triage(args: argparse.Namespace) -> int:
     inhibited: list[Alert] = []
     if args.inhibit:
         alerts, inhibited = inhibit_by_critical(alerts)
+    routes = None
+    if args.routes:
+        try:
+            routes = load_routes(json.load(open(args.routes)))
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            print(f"error: bad routes file: {exc}", file=sys.stderr)
+            return 2
+    if args.by_owner and routes is None:
+        print("error: --by-owner requires --routes FILE", file=sys.stderr)
+        return 2
+
+    def _owner(alert: Alert) -> str:
+        return f" -> {route_owner(routes, alert.service)}" if routes else ""
 
     def _suffix(alert: Alert) -> str:
         n = counts[dedupe_key(alert)]
@@ -130,9 +144,12 @@ def _cmd_triage(args: argparse.Namespace) -> int:
         payload = {"alerts": [
             {"alert_id": a.alert_id, "service": a.service,
              "summary": a.summary, "severity": a.severity,
-             "occurrences": counts[dedupe_key(a)]}
+             "occurrences": counts[dedupe_key(a)],
+             **({"owner": route_owner(routes, a.service)} if routes else {})}
             for a in alerts
         ]}
+        if args.by_owner:
+            payload["by_owner"] = owner_rollup(alerts, routes)
         if args.by_severity:
             payload["by_severity"] = severity_counts(alerts)
         if args.top_talkers:
@@ -159,10 +176,18 @@ def _cmd_triage(args: argparse.Namespace) -> int:
                 for a in inhibited
             ]
             print(json.dumps(payload, indent=2))
-        elif args.top_talkers or args.by_severity or silenced:
+        elif args.top_talkers or args.by_severity or silenced or args.by_owner:
             print(json.dumps(payload, indent=2))
         else:
             print(json.dumps(payload["alerts"], indent=2))
+        return 0
+    if args.by_owner:
+        print("Owners (worst severity first):")
+        for row in owner_rollup(alerts, routes):
+            breakdown = ", ".join(f"{n} {sev}" for sev, n in
+                                  sorted(row["by_severity"].items()))
+            print(f"  {row['owner']:20s} {row['alerts']:>3} alert"
+                  f"{'s' if row['alerts'] != 1 else ''} ({breakdown})")
         return 0
     if args.by_service:
         for service, group in sorted(group_by_service(alerts).items()):
@@ -188,7 +213,8 @@ def _cmd_triage(args: argparse.Namespace) -> int:
             print(f"  {n:>4}x [{alert.severity:8s}] {alert.service}: {alert.summary}")
         return 0
     for alert in alerts:
-        print(f"[{alert.severity:8s}] {alert.service:20s} {alert.summary}{_suffix(alert)}")
+        print(f"[{alert.severity:8s}] {alert.service:20s} {alert.summary}{_suffix(alert)}"
+              f"{_owner(alert)}")
     if inhibited:
         print(f"({len(inhibited)} alert{'' if len(inhibited) == 1 else 's'} "
               f"inhibited: symptoms of a critical on the same service)")
@@ -563,6 +589,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", action="store_true", help="emit the triaged alerts as JSON")
     p.add_argument("--inhibit", action="store_true",
                    help="suppress lower-severity alerts on services with an active critical")
+    p.add_argument("--routes", metavar="FILE",
+                   help="JSON service->owner map with a default owner; "
+                        "annotates each alert with its owner")
+    p.add_argument("--by-owner", action="store_true",
+                   help="per-owner roll-up (worst severity first); requires --routes")
     p.add_argument("--silences", metavar="FILE",
                    help="silence file: JSON list of {service?, severity?, contains?, "
                         "reason, until}; matching alerts move to a silenced section")
