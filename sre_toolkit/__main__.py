@@ -21,7 +21,7 @@ from .silences import apply_silences, load_silences
 from .alert_triage import (Alert, dedupe_key, duplicate_counts, group_by_service,
                            inhibit_by_critical, rules_from_dict, severity_counts,
                            top_talkers, triage)
-from .burn_alerts import BurnRule, BurnSample, evaluate_rules
+from .burn_alerts import BurnRule, BurnSample, evaluate_rules, suggest_rules
 from .error_budget import (
     allowed_downtime_minutes,
     compute_error_budget,
@@ -252,6 +252,29 @@ def _burn_rules(raw: list[dict]) -> tuple[BurnRule, ...] | None:
 
 
 def _cmd_burn(args: argparse.Namespace) -> int:
+    if args.suggest:
+        try:
+            suggested = suggest_rules(args.slo, args.window_days)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps({
+            "slo": args.slo,
+            "window_days": args.window_days,
+            "samples": [],
+            "rules": [
+                {"name": r.name, "severity": r.severity,
+                 "burn_threshold": r.burn_threshold,
+                 "long_window_hours": r.long_window_hours,
+                 "short_window_hours": r.short_window_hours}
+                for r in suggested
+            ],
+        }, indent=2))
+        return 0
+    if not args.file:
+        print("error: burn needs a JSON samples file, or --suggest to emit a "
+              "policy template", file=sys.stderr)
+        return 2
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
     samples = [
         BurnSample(
@@ -491,8 +514,15 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=_cmd_report)
 
     p = sub.add_parser("burn", help="evaluate multi-window burn-rate rules from a JSON file ('-' for stdin)")
-    p.add_argument("file")
+    p.add_argument("file", nargs="?", help="JSON samples file; omit with --suggest")
     p.add_argument("--json", action="store_true", help="emit the firing rules as JSON")
+    p.add_argument("--suggest", action="store_true",
+                   help="emit a standard three-tier burn-rate policy template for "
+                        "--slo/--window-days instead of evaluating samples")
+    p.add_argument("--slo", type=float, default=0.999,
+                   help="with --suggest: the SLO the policy protects (default 0.999)")
+    p.add_argument("--window-days", type=float, default=30.0,
+                   help="with --suggest: the SLO window the policy covers (default 30)")
     p.set_defaults(func=_cmd_burn)
 
     p = sub.add_parser("postmortem", help="render a Markdown postmortem from a JSON incident ('-' for stdin)")
