@@ -5,6 +5,8 @@ Subcommands:
     downtime    allowed downtime in minutes for an SLO over N days
     triage      classify a JSON list of alerts
     report      render a Markdown SLO status report from a JSON list
+    burn        evaluate multi-window burn-rate rules from a JSON spec
+    postmortem  render a Markdown postmortem from a JSON incident
 """
 
 from __future__ import annotations
@@ -14,7 +16,9 @@ import json
 import sys
 
 from .alert_triage import Alert, triage
+from .burn_alerts import BurnSample, evaluate_rules
 from .error_budget import allowed_downtime_minutes, compute_error_budget
+from .postmortem import Incident, render_postmortem
 from .report import SLOSnapshot, render_report
 
 
@@ -57,6 +61,47 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_burn(args: argparse.Namespace) -> int:
+    raw = json.load(sys.stdin if args.file == "-" else open(args.file))
+    samples = [
+        BurnSample(
+            window_hours=float(item["window_hours"]),
+            total_events=int(item["total"]),
+            bad_events=int(item["bad"]),
+        )
+        for item in raw["samples"]
+    ]
+    firing = evaluate_rules(float(raw["slo"]), samples)
+    if not firing:
+        print("No burn-rate rules firing.")
+        return 0
+    for rule in firing:
+        print(
+            f"[{rule.severity:8s}] {rule.name}: burn >= {rule.burn_threshold:g}x "
+            f"on both {rule.long_window_hours:g}h and {rule.short_window_hours * 60:g}m windows"
+        )
+    return 1 if any(rule.severity == "critical" for rule in firing) else 0
+
+
+def _cmd_postmortem(args: argparse.Namespace) -> int:
+    raw = json.load(sys.stdin if args.file == "-" else open(args.file))
+    incident = Incident(
+        title=raw["title"],
+        severity=raw["severity"],
+        started=raw["started"],
+        detected=raw["detected"],
+        resolved=raw["resolved"],
+        services=tuple(raw.get("services", ())),
+        summary=raw["summary"],
+        impact=raw["impact"],
+        root_cause=raw["root_cause"],
+        timeline=tuple(tuple(pair) for pair in raw.get("timeline", ())),
+        action_items=tuple(raw.get("action_items", ())),
+    )
+    print(render_postmortem(incident), end="")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sre_toolkit")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -79,6 +124,14 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("report", help="Markdown SLO status report from a JSON file ('-' for stdin)")
     p.add_argument("file")
     p.set_defaults(func=_cmd_report)
+
+    p = sub.add_parser("burn", help="evaluate multi-window burn-rate rules from a JSON file ('-' for stdin)")
+    p.add_argument("file")
+    p.set_defaults(func=_cmd_burn)
+
+    p = sub.add_parser("postmortem", help="render a Markdown postmortem from a JSON incident ('-' for stdin)")
+    p.add_argument("file")
+    p.set_defaults(func=_cmd_postmortem)
 
     args = parser.parse_args(argv)
     return args.func(args)
