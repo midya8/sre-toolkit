@@ -16,7 +16,9 @@ need to be right. This toolkit makes them scriptable:
 - **Alert triage** - classify alerts by keyword rules, dedupe repeats, sort by
   severity so the page-worthy problem is on top.
 - **Postmortems** - render a consistent Markdown postmortem from structured
-  incident data, with timeline and action-item checklists.
+  incident data, with timeline, action-item checklists, and response metrics
+  (time to detect, time to resolve, total duration) computed automatically
+  from the incident timestamps when they are parseable.
 - **Burn-rate alerts** - multi-window alerting (page at 14.4x over 1h+5m,
   ticket at 6x over 6h+30m) that only fires when burn is elevated on both the
   long and short window, so blips never page anyone. The `burn` CLI accepts
