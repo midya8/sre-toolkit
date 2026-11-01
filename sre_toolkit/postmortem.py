@@ -125,6 +125,24 @@ def summarize_incidents(incidents: list[Incident]) -> IncidentStats | None:
     )
 
 
+def summarize_by_severity(incidents: list[Incident]) -> dict[str, "IncidentStats"]:
+    """Per-severity response-metric aggregates.
+
+    MTTR only means something split by severity - a 4-hour low-severity fix
+    tells a different story than a 4-hour critical. Severities with no
+    computable incidents are omitted.
+    """
+    groups: dict[str, list[Incident]] = {}
+    for incident in incidents:
+        groups.setdefault(incident.severity, []).append(incident)
+    result = {}
+    for severity, group in groups.items():
+        stats = summarize_incidents(group)
+        if stats is not None:
+            result[severity] = stats
+    return result
+
+
 def _format_duration(delta: timedelta) -> str:
     minutes = round(delta.total_seconds() / 60)
     if minutes < 60:

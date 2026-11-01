@@ -365,6 +365,40 @@ class TestMetricsCLI(unittest.TestCase):
         self.assertEqual(data["time_to_resolve_minutes"],
                          {"mean": 88.0, "median": 88.0, "p90": 88.0})
 
+    def test_json_by_severity(self):
+        incidents = [
+            {"title": "a", "severity": "high", "started": "2026-10-30 14:05 UTC",
+             "detected": "2026-10-30 14:12 UTC", "resolved": "2026-10-30 15:40 UTC",
+             "summary": "s", "impact": "i", "root_cause": "r"},
+            {"title": "b", "severity": "low", "started": "2026-10-28 09:00 UTC",
+             "detected": "2026-10-28 09:30 UTC", "resolved": "2026-10-28 10:00 UTC",
+             "summary": "s", "impact": "i", "root_cause": "r"},
+        ]
+        code, out = _run(["metrics", "--json"], incidents)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["by_severity"]["high"],
+                         {"incidents": 1, "mean_time_to_detect_minutes": 7.0,
+                          "mean_time_to_resolve_minutes": 88.0})
+        self.assertEqual(data["by_severity"]["low"]["incidents"], 1)
+
+    def test_text_by_severity_only_when_multiple(self):
+        incidents = [
+            {"title": "a", "severity": "high", "started": "2026-10-30 14:05 UTC",
+             "detected": "2026-10-30 14:12 UTC", "resolved": "2026-10-30 15:40 UTC",
+             "summary": "s", "impact": "i", "root_cause": "r"},
+            {"title": "b", "severity": "low", "started": "2026-10-28 09:00 UTC",
+             "detected": "2026-10-28 09:30 UTC", "resolved": "2026-10-28 10:00 UTC",
+             "summary": "s", "impact": "i", "root_cause": "r"},
+        ]
+        code, out = _run(["metrics"], incidents)
+        self.assertEqual(code, 0)
+        self.assertIn("By severity:", out)
+        self.assertIn("high: n=1, mean TTD 7 minutes", out)
+        # single-severity input stays quiet
+        code, out = _run(["metrics"], [self.INCIDENTS[0]])
+        self.assertNotIn("By severity:", out)
+
     def test_json_exit_2_when_nothing_computable(self):
         code, out = _run(["metrics", "--json"], [self.INCIDENTS[1]])
         self.assertEqual(code, 2)

@@ -24,7 +24,7 @@ from .error_budget import (
     compute_error_budget,
     time_to_exhaustion_days,
 )
-from .postmortem import Incident, _format_duration, render_postmortem, summarize_incidents
+from .postmortem import Incident, _format_duration, render_postmortem, summarize_by_severity, summarize_incidents
 from .report import SLOSnapshot, render_report, snapshot_summary
 from .slo_doc import SLODefinition, render_slo_doc
 
@@ -259,7 +259,7 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
         print("error: no incidents with computable response metrics", file=sys.stderr)
         return 2
     if args.json:
-        print(json.dumps(_metrics_summary(stats), indent=2))
+        print(json.dumps(_metrics_summary(stats, [_incident_from(item) for item in raw]), indent=2))
         return 0
     skipped = f" ({stats.skipped} skipped, timestamps unparseable)" if stats.skipped else ""
     print(f"Incidents analyzed: {stats.incidents}{skipped}")
@@ -269,6 +269,13 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
     print(f"Time to resolve: mean {_format_duration(stats.mean_time_to_resolve)}, "
           f"median {_format_duration(stats.median_time_to_resolve)}, "
           f"p90 {_format_duration(stats.p90_time_to_resolve)}")
+    by_severity = summarize_by_severity([_incident_from(item) for item in raw])
+    if len(by_severity) > 1:
+        print("By severity:")
+        for severity, group in sorted(by_severity.items()):
+            print(f"  {severity}: n={group.incidents}, "
+                  f"mean TTD {_format_duration(group.mean_time_to_detect)}, "
+                  f"mean TTR {_format_duration(group.mean_time_to_resolve)}")
     return 0
 
 
@@ -276,9 +283,13 @@ def _minutes(delta) -> float:
     return round(delta.total_seconds() / 60, 2)
 
 
-def _metrics_summary(stats) -> dict:
-    """Machine-readable incident metrics - durations in minutes."""
-    return {
+def _metrics_summary(stats, incidents=None) -> dict:
+    """Machine-readable incident metrics - durations in minutes.
+
+    With the incidents, adds a per-severity breakdown - MTTR only means
+    something split by severity.
+    """
+    summary = {
         "incidents": stats.incidents,
         "skipped": stats.skipped,
         "time_to_detect_minutes": {
@@ -292,6 +303,16 @@ def _metrics_summary(stats) -> dict:
             "p90": _minutes(stats.p90_time_to_resolve),
         },
     }
+    if incidents is not None:
+        summary["by_severity"] = {
+            severity: {
+                "incidents": group.incidents,
+                "mean_time_to_detect_minutes": _minutes(group.mean_time_to_detect),
+                "mean_time_to_resolve_minutes": _minutes(group.mean_time_to_resolve),
+            }
+            for severity, group in sorted(summarize_by_severity(incidents).items())
+        }
+    return summary
 
 
 def _cmd_slo_doc(args: argparse.Namespace) -> int:
