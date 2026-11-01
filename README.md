@@ -28,6 +28,11 @@ need to be right. This toolkit makes them scriptable:
   silences - bounded, reasoned suppressions matched on service, severity
   and/or summary substring - moving matched alerts into a visible
   silenced section (with the reason) instead of the main list.
+  `--routes routes.json` maps each service to its owning team (exact
+  match, with a default owner for everything else), tagging each alert
+  with its owner in text and JSON, and `--by-owner` rolls the board up
+  per team, worst severity first, so a page storm fans out to the right
+  on-call rotations.
 - **Postmortems** - render a consistent Markdown postmortem from structured
   incident data, with timeline, action-item checklists, and response metrics
   (time to detect, time to resolve, total duration) computed automatically
@@ -105,6 +110,7 @@ python -m sre_toolkit triage examples/alerts.json
 python -m sre_toolkit triage examples/alerts.json --top-talkers   # noisiest deduped alerts first
 python -m sre_toolkit triage examples/alerts.json --by-severity   # active alerts per severity
 python -m sre_toolkit triage examples/alerts.json --silences examples/silences.json
+python -m sre_toolkit triage examples/alerts.json --routes examples/routes.json --by-owner  # per-team roll-up
 python -m sre_toolkit report examples/slo-snapshots.json
 python -m sre_toolkit report examples/slo-snapshots.json --summary  # fleet roll-up: status counts, worst SLO
 python -m sre_toolkit burn examples/burn-samples.json      # exit 1 when a critical rule fires
@@ -124,9 +130,9 @@ python -m sre_toolkit slo-doc examples/slo-definition.json --json   # machine-re
 python -m unittest discover -s tests -v
 ```
 
-242 tests cover the budget math (including boundary and validation cases),
+254 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, severity and noise
-roll-ups, silence validation, matching and expiry, burn-rate rules, policy suggestion and
+roll-ups, silence validation, matching and expiry, alert ownership routing and roll-ups, burn-rate rules, policy suggestion and
 time-series replay,
 postmortem rendering, report rendering with fleet summaries, SLO document
 rendering (Markdown and JSON), metrics aggregation (per severity, per
@@ -137,7 +143,7 @@ service, per week), action-item follow-through, and the CLI commands.
 ```
 sre_toolkit/
   error_budget.py   # SLO budget, burn rate, downtime, exhaustion projection
-  alert_triage.py   # severity rules, dedupe, severity ordering, grouping
+  alert_triage.py   # severity rules, dedupe, severity ordering, grouping, owner routing
   silences.py       # bounded alert silences with matchers, reasons, expiry
   postmortem.py     # structured incident -> Markdown postmortem
   burn_alerts.py    # multi-window burn-rate alerting rules
