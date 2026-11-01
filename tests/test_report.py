@@ -44,5 +44,34 @@ class TestRenderReport(unittest.TestCase):
             render_report([SLOSnapshot("API", 1.5, 100, 1)])
 
 
+class TestExhaustionProjection(unittest.TestCase):
+    def test_healthy_line_projects_exhaustion(self):
+        snap = SLOSnapshot("api", 0.999, 250000, 120, window_days=30)
+        out = render_report([snap])
+        self.assertIn("At current burn the budget exhausts in ~15.6 days.", out)
+
+    def test_nearly_exhausted_line_projects_exhaustion(self):
+        snap = SLOSnapshot("api", 0.995, 1200000, 5400, window_days=30)
+        out = render_report([snap])
+        self.assertIn("budget nearly exhausted", out)
+        self.assertIn("At current burn the budget exhausts in ~3.0 days.", out)
+
+    def test_zero_burn_notes_no_projection(self):
+        snap = SLOSnapshot("api", 0.999, 1000, 0, window_days=30)
+        out = render_report([snap])
+        self.assertIn("Zero burn: no exhaustion projected.", out)
+
+    def test_exhausted_line_unchanged_with_window(self):
+        snap = SLOSnapshot("api", 0.99, 1000, 20, window_days=30)
+        out = render_report([snap])
+        self.assertIn("error budget exhausted", out)
+        self.assertNotIn("At current burn", out)
+
+    def test_no_window_keeps_plain_status_line(self):
+        snap = SLOSnapshot("api", 0.999, 250000, 120)
+        out = render_report([snap])
+        self.assertNotIn("At current burn", out)
+
+
 if __name__ == "__main__":
     unittest.main()
