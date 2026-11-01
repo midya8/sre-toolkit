@@ -1,0 +1,186 @@
+{
+  "slo": 0.999,
+  "comment": "5-minute request buckets around the 20:30 deploy regression",
+  "buckets": [
+    {
+      "timestamp": "2026-10-31T20:00:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T20:05:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T20:10:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T20:15:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T20:20:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T20:25:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T20:30:00Z",
+      "total": 30000,
+      "bad": 900
+    },
+    {
+      "timestamp": "2026-10-31T20:35:00Z",
+      "total": 30000,
+      "bad": 900
+    },
+    {
+      "timestamp": "2026-10-31T20:40:00Z",
+      "total": 30000,
+      "bad": 900
+    },
+    {
+      "timestamp": "2026-10-31T20:45:00Z",
+      "total": 30000,
+      "bad": 900
+    },
+    {
+      "timestamp": "2026-10-31T20:50:00Z",
+      "total": 30000,
+      "bad": 900
+    },
+    {
+      "timestamp": "2026-10-31T20:55:00Z",
+      "total": 30000,
+      "bad": 900
+    },
+    {
+      "timestamp": "2026-10-31T21:00:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:05:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:10:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:15:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:20:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:25:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:30:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:35:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:40:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:45:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:50:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T21:55:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:00:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:05:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:10:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:15:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:20:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:25:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:30:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:35:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:40:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:45:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:50:00Z",
+      "total": 30000,
+      "bad": 20
+    },
+    {
+      "timestamp": "2026-10-31T22:55:00Z",
+      "total": 30000,
+      "bad": 20
+    }
+  ]
+}
