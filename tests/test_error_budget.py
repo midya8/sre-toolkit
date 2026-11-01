@@ -43,6 +43,22 @@ class TestComputeErrorBudget(unittest.TestCase):
             compute_error_budget(0.99, 100, -1)
 
 
+class TestBadEventCounts(unittest.TestCase):
+    def test_allowed_and_remaining(self):
+        budget = compute_error_budget(0.999, 10000, 5)
+        self.assertEqual(budget.allowed_bad_events, 10)
+        self.assertEqual(budget.remaining_bad_events, 5)
+
+    def test_remaining_goes_negative_when_overspent(self):
+        budget = compute_error_budget(0.999, 1000, 10)
+        self.assertEqual(budget.allowed_bad_events, 1)
+        self.assertEqual(budget.remaining_bad_events, -9)
+
+    def test_allowed_floors_fractional_budgets(self):
+        budget = compute_error_budget(0.99, 150, 0)
+        self.assertEqual(budget.allowed_bad_events, 1)  # 1.5 floored
+
+
 class TestAllowedDowntime(unittest.TestCase):
     def test_99_9_percent_over_30_days(self):
         # 0.1% of 30 days = 43.2 minutes.
