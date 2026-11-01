@@ -139,6 +139,18 @@ def _cmd_burn(args: argparse.Namespace) -> int:
         firing = evaluate_rules(float(raw["slo"]), samples)
     else:
         firing = evaluate_rules(float(raw["slo"]), samples, rules=rules)
+    if args.json:
+        print(json.dumps({
+            "slo": float(raw["slo"]),
+            "firing": [
+                {"name": r.name, "severity": r.severity,
+                 "burn_threshold": r.burn_threshold,
+                 "long_window_hours": r.long_window_hours,
+                 "short_window_hours": r.short_window_hours}
+                for r in firing
+            ],
+        }, indent=2))
+        return 1 if any(rule.severity == "critical" for rule in firing) else 0
     if not firing:
         print("No burn-rate rules firing.")
         return 0
@@ -215,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("burn", help="evaluate multi-window burn-rate rules from a JSON file ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--json", action="store_true", help="emit the firing rules as JSON")
     p.set_defaults(func=_cmd_burn)
 
     p = sub.add_parser("postmortem", help="render a Markdown postmortem from a JSON incident ('-' for stdin)")
