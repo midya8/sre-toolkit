@@ -13,6 +13,8 @@ need to be right. This toolkit makes them scriptable:
 
 - **Error budgets** - compute budget fraction, consumed share, burn rate and
   allowed downtime for an SLO, with input validation instead of silent garbage.
+  `budget` exits 1 when the budget is exhausted (a scriptable health gate)
+  and both `budget` and `downtime` emit `--json` for pipelines.
 - **Alert triage** - classify alerts by keyword rules, dedupe repeats while
   keeping each distinct alert's fire count (`(x12)` in the CLI, `occurrences`
   in JSON), sort by severity so the page-worthy problem is on top, and
