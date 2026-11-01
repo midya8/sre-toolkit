@@ -31,6 +31,23 @@ from .slo_doc import SLODefinition, render_slo_doc
 
 def _cmd_budget(args: argparse.Namespace) -> int:
     budget = compute_error_budget(args.slo, args.total, args.bad)
+    if args.json:
+        payload = {
+            "slo": budget.slo,
+            "total_events": budget.total_events,
+            "bad_events": budget.bad_events,
+            "budget_fraction": budget.budget_fraction,
+            "consumed_fraction": budget.consumed_fraction,
+            "burn_rate": budget.burn_rate,
+            "remaining_fraction": budget.remaining_fraction,
+            "budget_exhausted": budget.remaining_fraction <= 0,
+        }
+        if args.window_days is not None:
+            days = time_to_exhaustion_days(budget, args.window_days)
+            payload["window_days"] = args.window_days
+            payload["exhaustion_days"] = None if days is None or days <= 0 else days
+        print(json.dumps(payload, indent=2))
+        return 0 if budget.remaining_fraction > 0 else 1
     print(f"SLO target:        {budget.slo:.4%}")
     print(f"Budget fraction:   {budget.budget_fraction:.4%}")
     print(f"Consumed:          {budget.consumed_fraction:.1%}")
@@ -50,7 +67,17 @@ def _cmd_budget(args: argparse.Namespace) -> int:
 def _cmd_downtime(args: argparse.Namespace) -> int:
     if args.days is not None:
         minutes = allowed_downtime_minutes(args.slo, args.days)
-        print(f"Allowed downtime: {minutes:.1f} minutes over {args.days:g} days")
+        if args.json:
+            print(json.dumps({"slo": args.slo, "window_days": args.days,
+                              "allowed_downtime_minutes": minutes}, indent=2))
+        else:
+            print(f"Allowed downtime: {minutes:.1f} minutes over {args.days:g} days")
+        return 0
+    if args.json:
+        print(json.dumps({"slo": args.slo, "allowed_downtime_minutes": {
+            str(window): allowed_downtime_minutes(args.slo, window)
+            for window in (1, 7, 30, 90)
+        }}, indent=2))
         return 0
     print(f"Allowed downtime for SLO {args.slo:.3%}:")
     for window in (1, 7, 30, 90):
@@ -290,6 +317,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--slo", type=float, required=True, help="SLO as a fraction, e.g. 0.999")
     p.add_argument("--total", type=int, required=True, help="total events in the window")
     p.add_argument("--bad", type=int, required=True, help="bad events in the window")
+    p.add_argument("--json", action="store_true", help="emit the budget as JSON")
     p.add_argument("--window-days", type=float, default=None,
                    help="SLO window length; adds an exhaustion projection")
     p.set_defaults(func=_cmd_budget)
@@ -298,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--slo", type=float, required=True)
     p.add_argument("--days", type=float, default=None,
                    help="window length in days; omit for a 1/7/30/90-day table")
+    p.add_argument("--json", action="store_true", help="emit allowed downtime as JSON")
     p.set_defaults(func=_cmd_downtime)
 
     p = sub.add_parser("triage", help="classify alerts from a JSON file ('-' for stdin)")
