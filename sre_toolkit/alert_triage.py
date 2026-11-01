@@ -186,3 +186,58 @@ def severity_counts(alerts: list[Alert]) -> dict[str, int]:
     for alert in alerts:
         counts[alert.severity] = counts.get(alert.severity, 0) + 1
     return {sev: counts[sev] for sev in SEVERITY_ORDER if sev in counts}
+
+
+@dataclass(frozen=True)
+class Routes:
+    """Alert ownership: exact service -> owner map plus a default owner.
+
+    Deliberately exact-match only: a service missing from the map lands on
+    the default owner instead of a surprising prefix guess, so a missing
+    route is visible in the output.
+    """
+
+    owners: dict
+    default: str = "unrouted"
+
+
+def load_routes(data: object) -> Routes:
+    """Validate a routes spec: {"routes": {"svc": "team"}, "default": "team"}."""
+    if not isinstance(data, dict):
+        raise ValueError("routes file must be a JSON object")
+    raw = data.get("routes", {})
+    if not isinstance(raw, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) and k and v
+            for k, v in raw.items()):
+        raise ValueError("'routes' must map service names to owner names")
+    default = data.get("default", "unrouted")
+    if not isinstance(default, str) or not default:
+        raise ValueError("'default' must be a non-empty owner name")
+    return Routes(owners=dict(raw), default=default)
+
+
+def route_owner(routes: Routes, service: str) -> str:
+    """The owner for one service: exact match, else the default."""
+    return routes.owners.get(service, routes.default)
+
+
+def owner_rollup(alerts: list[Alert], routes: Routes) -> list[dict]:
+    """Per-owner roll-up: count, worst severity, per-severity counts.
+
+    Worst-severity-first, then busiest; assumes nothing about input order.
+    """
+    rank = {severity: index for index, severity in enumerate(SEVERITY_ORDER)}
+    by_owner: dict[str, list[Alert]] = {}
+    for alert in alerts:
+        by_owner.setdefault(route_owner(routes, alert.service), []).append(alert)
+    rows = []
+    for owner, group in by_owner.items():
+        by_severity: dict[str, int] = {}
+        for alert in group:
+            by_severity[alert.severity] = by_severity.get(alert.severity, 0) + 1
+        worst = min(by_severity, key=lambda sev: rank.get(sev, len(SEVERITY_ORDER)))
+        rows.append({"owner": owner, "alerts": len(group),
+                     "worst_severity": worst, "by_severity": by_severity})
+    rows.sort(key=lambda row: (rank.get(row["worst_severity"], len(SEVERITY_ORDER)),
+                               -row["alerts"], row["owner"]))
+    return rows
