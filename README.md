@@ -15,7 +15,10 @@ need to be right. This toolkit makes them scriptable:
   allowed downtime for an SLO, with input validation instead of silent garbage.
 - **Alert triage** - classify alerts by keyword rules, dedupe repeats while
   keeping each distinct alert's fire count (`(x12)` in the CLI, `occurrences`
-  in JSON), sort by severity so the page-worthy problem is on top.
+  in JSON), sort by severity so the page-worthy problem is on top, and
+  `--inhibit` suppresses lower-severity symptoms on a service with an active
+  critical, the way Alertmanager inhibit rules keep a known outage from
+  paging for every symptom.
 - **Postmortems** - render a consistent Markdown postmortem from structured
   incident data, with timeline, action-item checklists, and response metrics
   (time to detect, time to resolve, total duration) computed automatically
