@@ -16,7 +16,7 @@ import json
 import sys
 
 from .alert_triage import Alert, triage
-from .burn_alerts import BurnSample, evaluate_rules
+from .burn_alerts import BurnRule, BurnSample, evaluate_rules
 from .error_budget import (
     allowed_downtime_minutes,
     compute_error_budget,
@@ -79,6 +79,25 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _burn_rules(raw: list[dict]) -> tuple[BurnRule, ...] | None:
+    """Build custom rules from the JSON spec, or None for the defaults."""
+    if not raw:
+        return None
+    rules = []
+    for item in raw:
+        try:
+            rules.append(BurnRule(
+                name=str(item["name"]),
+                severity=str(item["severity"]),
+                burn_threshold=float(item["burn_threshold"]),
+                long_window_hours=float(item["long_window_hours"]),
+                short_window_hours=float(item["short_window_hours"]),
+            ))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"invalid burn rule {item!r}: {exc}") from exc
+    return tuple(rules)
+
+
 def _cmd_burn(args: argparse.Namespace) -> int:
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
     samples = [
@@ -89,7 +108,15 @@ def _cmd_burn(args: argparse.Namespace) -> int:
         )
         for item in raw["samples"]
     ]
-    firing = evaluate_rules(float(raw["slo"]), samples)
+    try:
+        rules = _burn_rules(raw.get("rules"))
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if rules is None:
+        firing = evaluate_rules(float(raw["slo"]), samples)
+    else:
+        firing = evaluate_rules(float(raw["slo"]), samples, rules=rules)
     if not firing:
         print("No burn-rate rules firing.")
         return 0
