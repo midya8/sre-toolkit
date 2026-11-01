@@ -16,7 +16,7 @@ import argparse
 import json
 import sys
 
-from .alert_triage import Alert, group_by_service, triage
+from .alert_triage import Alert, dedupe_key, duplicate_counts, group_by_service, triage
 from .burn_alerts import BurnRule, BurnSample, evaluate_rules
 from .error_budget import (
     allowed_downtime_minutes,
@@ -60,11 +60,19 @@ def _cmd_downtime(args: argparse.Namespace) -> int:
 
 def _cmd_triage(args: argparse.Namespace) -> int:
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
-    alerts = triage([Alert(**item) for item in raw])
+    incoming = [Alert(**item) for item in raw]
+    counts = duplicate_counts(incoming)
+    alerts = triage(incoming)
+
+    def _suffix(alert: Alert) -> str:
+        n = counts[dedupe_key(alert)]
+        return f" (x{n})" if n > 1 else ""
+
     if args.json:
         print(json.dumps([
             {"alert_id": a.alert_id, "service": a.service,
-             "summary": a.summary, "severity": a.severity}
+             "summary": a.summary, "severity": a.severity,
+             "occurrences": counts[dedupe_key(a)]}
             for a in alerts
         ], indent=2))
         return 0
@@ -74,10 +82,10 @@ def _cmd_triage(args: argparse.Namespace) -> int:
             n = len(group)
             print(f"{service} ({n} alert{'' if n == 1 else 's'}, worst: {worst})")
             for alert in group:
-                print(f"  [{alert.severity:8s}] {alert.summary}")
+                print(f"  [{alert.severity:8s}] {alert.summary}{_suffix(alert)}")
         return 0
     for alert in alerts:
-        print(f"[{alert.severity:8s}] {alert.service:20s} {alert.summary}")
+        print(f"[{alert.severity:8s}] {alert.service:20s} {alert.summary}{_suffix(alert)}")
     return 0
 
 
