@@ -16,7 +16,7 @@ import argparse
 import json
 import sys
 
-from .alert_triage import Alert, triage
+from .alert_triage import Alert, group_by_service, triage
 from .burn_alerts import BurnRule, BurnSample, evaluate_rules
 from .error_budget import (
     allowed_downtime_minutes,
@@ -60,8 +60,23 @@ def _cmd_downtime(args: argparse.Namespace) -> int:
 
 def _cmd_triage(args: argparse.Namespace) -> int:
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
-    alerts = [Alert(**item) for item in raw]
-    for alert in triage(alerts):
+    alerts = triage([Alert(**item) for item in raw])
+    if args.json:
+        print(json.dumps([
+            {"alert_id": a.alert_id, "service": a.service,
+             "summary": a.summary, "severity": a.severity}
+            for a in alerts
+        ], indent=2))
+        return 0
+    if args.by_service:
+        for service, group in sorted(group_by_service(alerts).items()):
+            worst = group[0].severity  # triage() sorts most severe first
+            n = len(group)
+            print(f"{service} ({n} alert{'' if n == 1 else 's'}, worst: {worst})")
+            for alert in group:
+                print(f"  [{alert.severity:8s}] {alert.summary}")
+        return 0
+    for alert in alerts:
         print(f"[{alert.severity:8s}] {alert.service:20s} {alert.summary}")
     return 0
 
@@ -184,6 +199,9 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("triage", help="classify alerts from a JSON file ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--by-service", action="store_true",
+                   help="group output by service with counts and worst severity")
+    p.add_argument("--json", action="store_true", help="emit the triaged alerts as JSON")
     p.set_defaults(func=_cmd_triage)
 
     p = sub.add_parser("report", help="Markdown SLO status report from a JSON file ('-' for stdin)")
