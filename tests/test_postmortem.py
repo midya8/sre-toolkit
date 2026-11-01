@@ -2,7 +2,8 @@ import unittest
 from datetime import timedelta
 
 from sre_toolkit.postmortem import (Incident, render_postmortem, response_metrics,
-                                    summarize_by_severity, summarize_incidents)
+                                    summarize_by_severity, summarize_by_week,
+                                    summarize_incidents)
 
 
 def sample_incident() -> Incident:
@@ -159,6 +160,36 @@ class TestSummarizeIncidents(unittest.TestCase):
         bad = Incident("c", "low", "unknown", "unknown", "unknown", (), "s", "i", "r")
         self.assertIsNone(summarize_incidents([bad]))
         self.assertIsNone(summarize_incidents([]))
+
+
+class TestSummarizeByWeek(unittest.TestCase):
+    def inc(self, title, resolved, severity="high"):
+        return Incident(title, severity, "2026-10-01 00:00 UTC",
+                        "2026-10-01 00:05 UTC", resolved, (), "s", "i", "r")
+
+    def test_groups_by_iso_week_oldest_first(self):
+        weekly = summarize_by_week([
+            self.inc("a", "2026-10-30 15:40 UTC"),   # ISO week 44
+            self.inc("b", "2026-10-21 10:00 UTC"),   # ISO week 43
+            self.inc("c", "2026-10-30 16:40 UTC"),   # ISO week 44
+        ])
+        self.assertEqual([label for label, _ in weekly], ["2026-W43", "2026-W44"])
+        self.assertEqual(weekly[1][1].incidents, 2)
+
+    def test_skips_unparseable_resolved(self):
+        bad = Incident("d", "low", "unknown", "unknown", "unknown", (), "s", "i", "r")
+        weekly = summarize_by_week([bad, self.inc("a", "2026-10-30 15:40 UTC")])
+        self.assertEqual([label for label, _ in weekly], ["2026-W44"])
+        self.assertEqual(summarize_by_week([bad]), [])
+
+    def test_mean_ttr_per_week(self):
+        weekly = summarize_by_week([
+            Incident("a", "high", "2026-10-30 00:00 UTC", "2026-10-30 00:05 UTC",
+                     "2026-10-30 02:05 UTC", (), "s", "i", "r"),   # TTR 2h
+            Incident("b", "high", "2026-10-30 00:00 UTC", "2026-10-30 00:05 UTC",
+                     "2026-10-30 03:05 UTC", (), "s", "i", "r"),   # TTR 3h
+        ])
+        self.assertEqual(weekly[0][1].mean_time_to_resolve, timedelta(hours=2, minutes=30))
 
 
 if __name__ == "__main__":
