@@ -366,6 +366,24 @@ class TestSloDocCLI(unittest.TestCase):
         self.assertIn("# SLO: Checkout availability", out)
         self.assertIn("_No alert thresholds defined._", out)
 
+    def test_json_output(self):
+        code, out = _run(["slo-doc", "--json"], {
+            "name": "Checkout availability",
+            "service": "checkout-api",
+            "target": 0.999,
+            "window_days": 30,
+            "sli": "Share of requests without a 5xx.",
+            "alert_thresholds": ["page at 14.4x burn over 1h + 5m"],
+        })
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["name"], "Checkout availability")
+        self.assertEqual(payload["service"], "checkout-api")
+        self.assertEqual(payload["alert_thresholds"], ["page at 14.4x burn over 1h + 5m"])
+        self.assertAlmostEqual(payload["error_budget"]["budget_fraction"], 0.001)
+        self.assertAlmostEqual(payload["error_budget"]["allowed_downtime_minutes"], 43.2)
+        self.assertNotIn("# SLO:", out)
+
 
 class TestMetricsCLI(unittest.TestCase):
     INCIDENTS = [
