@@ -41,6 +41,11 @@ def classify_severity(summary: str, rules=_DEFAULT_RULES) -> str:
     return "low"
 
 
+def dedupe_key(alert: Alert) -> tuple[str, str]:
+    """The identity ``dedupe`` uses: (service, normalized summary)."""
+    return (alert.service, " ".join(alert.summary.lower().split()))
+
+
 def dedupe(alerts: list[Alert]) -> list[Alert]:
     """Collapse alerts that share (service, normalized summary).
 
@@ -50,11 +55,26 @@ def dedupe(alerts: list[Alert]) -> list[Alert]:
     seen: set[tuple[str, str]] = set()
     unique: list[Alert] = []
     for alert in alerts:
-        key = (alert.service, " ".join(alert.summary.lower().split()))
+        key = dedupe_key(alert)
         if key not in seen:
             seen.add(key)
             unique.append(alert)
     return unique
+
+
+def duplicate_counts(alerts: list[Alert]) -> dict[tuple[str, str], int]:
+    """Occurrence count per ``dedupe_key`` over the raw alert stream.
+
+    Every survivor of ``dedupe`` maps to a count of at least 1; a count
+    above 1 means the alert fired repeatedly. The volume matters next to
+    each distinct problem - one flap and a hundred repeats read alike
+    after dedupe alone.
+    """
+    counts: dict[tuple[str, str], int] = {}
+    for alert in alerts:
+        key = dedupe_key(alert)
+        counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def triage(alerts: list[Alert], rules=_DEFAULT_RULES) -> list[Alert]:
