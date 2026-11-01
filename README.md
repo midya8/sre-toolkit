@@ -1,0 +1,71 @@
+# sre-toolkit
+
+[![CI](https://github.com/midya8/sre-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/midya8/sre-toolkit/actions/workflows/ci.yml)
+
+Small, dependency-free Python utilities for day-to-day SRE work: error-budget
+math, alert triage, and postmortem generation. Standard library only - no
+`pip install` needed, works anywhere Python 3.10+ runs.
+
+## Why
+
+The math and the documents are the boring parts of incident work that still
+need to be right. This toolkit makes them scriptable:
+
+- **Error budgets** - compute budget fraction, consumed share, burn rate and
+  allowed downtime for an SLO, with input validation instead of silent garbage.
+- **Alert triage** - classify alerts by keyword rules, dedupe repeats, sort by
+  severity so the page-worthy problem is on top.
+- **Postmortems** - render a consistent Markdown postmortem from structured
+  incident data, with timeline and action-item checklists.
+
+## Usage
+
+Library:
+
+```python
+from sre_toolkit.error_budget import compute_error_budget, allowed_downtime_minutes
+from sre_toolkit.alert_triage import Alert, triage
+from sre_toolkit.postmortem import Incident, render_postmortem
+
+budget = compute_error_budget(slo=0.999, total_events=10_000, bad_events=5)
+print(f"budget consumed: {budget.consumed_fraction:.1%}, burn rate: {budget.burn_rate:.2f}x")
+
+print(f"99.9% over 30 days allows {allowed_downtime_minutes(0.999, 30):.1f} minutes down")
+
+alerts = triage([
+    Alert("a1", "web", "Weekly report ready"),
+    Alert("a2", "api", "Service down"),
+    Alert("a3", "db", "Error rate elevated"),
+])
+for a in alerts:
+    print(a.severity, a.service, a.summary)
+```
+
+CLI:
+
+```bash
+python -m sre_toolkit budget --slo 0.999 --total 10000 --bad 5
+python -m sre_toolkit downtime --slo 0.999 --days 30
+python -m sre_toolkit triage examples/alerts.json
+```
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+28 tests cover the budget math (including boundary and validation cases),
+severity classification, dedupe, ordering, grouping, and postmortem rendering.
+
+## Layout
+
+```
+sre_toolkit/
+  error_budget.py   # SLO budget, burn rate, downtime, exhaustion projection
+  alert_triage.py   # severity rules, dedupe, severity ordering, grouping
+  postmortem.py     # structured incident -> Markdown postmortem
+  __main__.py       # CLI: budget / downtime / triage
+tests/              # unittest suite, no external dependencies
+examples/           # sample alert input for the CLI
+```
