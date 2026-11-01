@@ -25,7 +25,7 @@ from .error_budget import (
     time_to_exhaustion_days,
 )
 from .postmortem import (Incident, _format_duration, render_postmortem, response_metrics,
-                         summarize_by_severity, summarize_incidents)
+                         summarize_by_severity, summarize_by_week, summarize_incidents)
 from .report import SLOSnapshot, consumed_fraction, render_report, snapshot_summary
 from .slo_doc import SLODefinition, render_slo_doc
 
@@ -272,12 +272,22 @@ def _cmd_postmortem(args: argparse.Namespace) -> int:
 
 def _cmd_metrics(args: argparse.Namespace) -> int:
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
-    stats = summarize_incidents([_incident_from(item) for item in raw])
+    incidents = [_incident_from(item) for item in raw]
+    stats = summarize_incidents(incidents)
     if stats is None:
         print("error: no incidents with computable response metrics", file=sys.stderr)
         return 2
     if args.json:
-        print(json.dumps(_metrics_summary(stats, [_incident_from(item) for item in raw]), indent=2))
+        summary = _metrics_summary(stats, incidents)
+        if args.by_week:
+            summary["by_week"] = [
+                {"week": label,
+                 "incidents": group.incidents,
+                 "mean_time_to_detect_minutes": _minutes(group.mean_time_to_detect),
+                 "mean_time_to_resolve_minutes": _minutes(group.mean_time_to_resolve)}
+                for label, group in summarize_by_week(incidents)
+            ]
+        print(json.dumps(summary, indent=2))
         return 0
     skipped = f" ({stats.skipped} skipped, timestamps unparseable)" if stats.skipped else ""
     print(f"Incidents analyzed: {stats.incidents}{skipped}")
@@ -287,13 +297,21 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
     print(f"Time to resolve: mean {_format_duration(stats.mean_time_to_resolve)}, "
           f"median {_format_duration(stats.median_time_to_resolve)}, "
           f"p90 {_format_duration(stats.p90_time_to_resolve)}")
-    by_severity = summarize_by_severity([_incident_from(item) for item in raw])
+    by_severity = summarize_by_severity(incidents)
     if len(by_severity) > 1:
         print("By severity:")
         for severity, group in sorted(by_severity.items()):
             print(f"  {severity}: n={group.incidents}, "
                   f"mean TTD {_format_duration(group.mean_time_to_detect)}, "
                   f"mean TTR {_format_duration(group.mean_time_to_resolve)}")
+    if args.by_week:
+        weekly = summarize_by_week(incidents)
+        if weekly:
+            print("By week:")
+            for label, group in weekly:
+                print(f"  {label}: n={group.incidents}, "
+                      f"mean TTD {_format_duration(group.mean_time_to_detect)}, "
+                      f"mean TTR {_format_duration(group.mean_time_to_resolve)}")
     return 0
 
 
@@ -400,6 +418,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("metrics", help="aggregate TTD/TTR across a JSON list of incidents ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--by-week", action="store_true",
+                   help="also bucket the aggregates by ISO week of resolution (trend view)")
     p.add_argument("--json", action="store_true",
                    help="emit the aggregates as JSON (durations in minutes)")
     p.set_defaults(func=_cmd_metrics)

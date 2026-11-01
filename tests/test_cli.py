@@ -384,6 +384,27 @@ class TestMetricsCLI(unittest.TestCase):
         self.assertIn("Time to resolve: mean 1 hour 28 minutes, median 1 hour 28 minutes, "
                       "p90 1 hour 28 minutes", out)
 
+    def test_by_week_text(self):
+        code, out = _run(["metrics", "--by-week"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        self.assertIn("By week:", out)
+        self.assertIn("2026-W44: n=1, mean TTD 7 minutes, mean TTR 1 hour 28 minutes", out)
+
+    def test_by_week_not_printed_without_flag(self):
+        code, out = _run(["metrics"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        self.assertNotIn("By week:", out)
+
+    def test_by_week_json(self):
+        code, out = _run(["metrics", "--json", "--by-week"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["by_week"], [{
+            "week": "2026-W44", "incidents": 1,
+            "mean_time_to_detect_minutes": 7.0,
+            "mean_time_to_resolve_minutes": 88.0,
+        }])
+
     def test_json_output(self):
         code, out = _run(["metrics", "--json"], self.INCIDENTS)
         self.assertEqual(code, 0)

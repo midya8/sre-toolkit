@@ -143,6 +143,29 @@ def summarize_by_severity(incidents: list[Incident]) -> dict[str, "IncidentStats
     return result
 
 
+def summarize_by_week(incidents: list[Incident]) -> list[tuple[str, "IncidentStats"]]:
+    """Weekly response-metric aggregates, oldest week first.
+
+    A single MTTR over a quarter hides the trend - "are we getting
+    faster?" needs the same aggregates bucketed by week. Incidents group
+    by the ISO week of their resolved timestamp; incidents whose resolved
+    time is unparseable are skipped, matching summarize_incidents.
+    """
+    groups: dict[tuple[int, int], list[Incident]] = {}
+    for incident in incidents:
+        resolved = _parse_timestamp(incident.resolved)
+        if resolved is None:
+            continue
+        iso = resolved.isocalendar()
+        groups.setdefault((iso[0], iso[1]), []).append(incident)
+    result = []
+    for (year, week), group in sorted(groups.items()):
+        stats = summarize_incidents(group)
+        if stats is not None:
+            result.append((f"{year}-W{week:02d}", stats))
+    return result
+
+
 def _format_duration(delta: timedelta) -> str:
     minutes = round(delta.total_seconds() / 60)
     if minutes < 60:
