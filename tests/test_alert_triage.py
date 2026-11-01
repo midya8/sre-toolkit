@@ -3,7 +3,7 @@ import unittest
 from sre_toolkit.alert_triage import (
     rules_from_dict,
     Alert, classify_severity, dedupe, dedupe_key, duplicate_counts, group_by_service,
-    inhibit_by_critical, triage,
+    inhibit_by_critical, top_talkers, triage,
 )
 
 
@@ -148,6 +148,44 @@ class TestGroupByService(unittest.TestCase):
         grouped = group_by_service(alerts)
         self.assertEqual([a.alert_id for a in grouped["api"]], ["a1", "a3"])
         self.assertEqual([a.alert_id for a in grouped["db"]], ["a2"])
+
+
+class TestTopTalkers(unittest.TestCase):
+    @staticmethod
+    def stream():
+        alerts = [Alert(f"c{i}", "web", "Service down") for i in range(2)]
+        alerts += [Alert(f"n{i}", "db", "Weekly report ready") for i in range(5)]
+        alerts.append(Alert("h1", "api", "Error rate elevated"))
+        return alerts
+
+    def test_ranks_by_occurrences_not_severity(self):
+        pairs = top_talkers(self.stream())
+        self.assertEqual(pairs[0][1], 5)
+        self.assertEqual(pairs[0][0].service, "db")
+        self.assertEqual(pairs[0][0].severity, "low")
+
+    def test_tie_breaks_by_severity(self):
+        pairs = top_talkers([
+            Alert("a", "web", "Weekly report ready"),
+            Alert("b", "web", "Service down"),
+        ])
+        self.assertEqual(pairs[0][0].summary, "Service down")
+
+    def test_limit(self):
+        pairs = top_talkers(self.stream(), limit=1)
+        self.assertEqual(len(pairs), 1)
+
+    def test_deduped_normalized_counts(self):
+        pairs = top_talkers([
+            Alert("a1", "api", "service   down in us-east"),
+            Alert("a2", "api", "Service down in us-east"),
+        ])
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0][1], 2)
+
+    def test_explicit_severity_kept(self):
+        pairs = top_talkers([Alert("a", "web", "flapping", severity="high")])
+        self.assertEqual(pairs[0][0].severity, "high")
 
 
 if __name__ == "__main__":
