@@ -88,6 +88,7 @@ python -m sre_toolkit burn examples/burn-samples.json      # exit 1 when a criti
 python -m sre_toolkit postmortem examples/incident.json
 python -m sre_toolkit metrics examples/incidents.json
 python -m sre_toolkit slo-doc examples/slo-definition.json
+python -m sre_toolkit slo-doc examples/slo-definition.json --json   # machine-readable definition
 ```
 
 ## Tests
@@ -96,9 +97,10 @@ python -m sre_toolkit slo-doc examples/slo-definition.json
 python -m unittest discover -s tests -v
 ```
 
-78 tests cover the budget math (including boundary and validation cases),
+158 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
-postmortem rendering, report rendering, and the CLI commands.
+postmortem rendering, report rendering, SLO document rendering (Markdown and
+JSON), metrics aggregation, and the CLI commands.
 
 ## Layout
 
@@ -109,7 +111,7 @@ sre_toolkit/
   postmortem.py     # structured incident -> Markdown postmortem
   burn_alerts.py    # multi-window burn-rate alerting rules
   report.py         # Markdown SLO status report from window snapshots
-  slo_doc.py        # Markdown SLO definition documents
+  slo_doc.py        # SLO definition documents (Markdown + JSON payload)
   __main__.py       # CLI: budget / downtime / triage / report / burn / postmortem / slo-doc
 tests/              # unittest suite, no external dependencies
 examples/           # sample alert input for the CLI
