@@ -83,6 +83,7 @@ python -m sre_toolkit budget --slo 0.999 --total 10000 --bad 5 --window-days 30
 python -m sre_toolkit downtime --slo 0.999          # 1/7/30/90-day table
 python -m sre_toolkit downtime --slo 0.999 --days 30
 python -m sre_toolkit triage examples/alerts.json
+python -m sre_toolkit triage examples/alerts.json --top-talkers   # noisiest deduped alerts first
 python -m sre_toolkit report examples/slo-snapshots.json
 python -m sre_toolkit burn examples/burn-samples.json      # exit 1 when a critical rule fires
 python -m sre_toolkit postmortem examples/incident.json
@@ -97,7 +98,7 @@ python -m sre_toolkit slo-doc examples/slo-definition.json --json   # machine-re
 python -m unittest discover -s tests -v
 ```
 
-158 tests cover the budget math (including boundary and validation cases),
+166 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
 postmortem rendering, report rendering, SLO document rendering (Markdown and
 JSON), metrics aggregation, and the CLI commands.

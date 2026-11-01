@@ -153,3 +153,23 @@ def group_by_service(alerts: list[Alert]) -> dict[str, list[Alert]]:
     for alert in alerts:
         grouped.setdefault(alert.service, []).append(alert)
     return grouped
+
+
+def top_talkers(alerts: list[Alert], limit: int = 10, rules=_DEFAULT_RULES) -> list[tuple[Alert, int]]:
+    """Rank deduped alerts by occurrence count, noisiest first.
+
+    Dedupe collapses repeats so each distinct problem appears once - but
+    that hides which problem is flooding the stream. This ranking keeps
+    the deduped, classified alerts and sorts them by how often each one
+    fired, tie-broken by severity then service and summary. It answers
+    "what do I silence first?" - the raw material for inhibition and
+    noise-reduction work.
+    """
+    triaged = triage(alerts, rules=rules)
+    counts = duplicate_counts(alerts)
+    rank = {severity: i for i, severity in enumerate(SEVERITY_ORDER)}
+    pairs = [(alert, counts[dedupe_key(alert)]) for alert in triaged]
+    pairs.sort(key=lambda pair: (-pair[1],
+                                 rank.get(pair[0].severity, len(rank)),
+                                 pair[0].service, pair[0].summary))
+    return pairs[:limit]

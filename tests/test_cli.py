@@ -556,5 +556,33 @@ class TestReportCLI(unittest.TestCase):
         self.assertEqual(code, 0)
 
 
+class TestTopTalkersCLI(unittest.TestCase):
+    STREAM = [
+        {"alert_id": f"n{i}", "service": "db", "summary": "Weekly report ready"}
+        for i in range(5)
+    ] + [
+        {"alert_id": "c1", "service": "web", "summary": "Service down"},
+    ]
+
+    def test_text_output(self):
+        code, out = _run(["triage", "--top-talkers"], self.STREAM)
+        self.assertEqual(code, 0)
+        self.assertIn("Top talkers (deduped, by occurrences):", out)
+        self.assertIn("   5x [low     ] db: Weekly report ready", out)
+        self.assertLess(out.index("5x"), out.index("1x"))
+
+    def test_json_output(self):
+        code, out = _run(["triage", "--json", "--top-talkers"], self.STREAM)
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["top_talkers"][0]["occurrences"], 5)
+        self.assertEqual(payload["top_talkers"][0]["service"], "db")
+
+    def test_absent_without_flag(self):
+        code, out = _run(["triage"], self.STREAM)
+        self.assertEqual(code, 0)
+        self.assertNotIn("Top talkers", out)
+
+
 if __name__ == "__main__":
     unittest.main()
