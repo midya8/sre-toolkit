@@ -23,6 +23,9 @@ need to be right. This toolkit makes them scriptable:
   custom rules in its JSON spec when the defaults do not fit a service.
 - **Status reports** - render a Markdown SLO status report (table plus
   plain-language status lines) from a JSON list of SLO window snapshots.
+- **SLO documents** - render an SLO definition (target, window, SLI, error
+  budget, alerting policy) as Markdown, so objectives live reviewably in
+  the repo next to the service they cover.
 
 ## Usage
 
@@ -57,6 +60,7 @@ python -m sre_toolkit triage examples/alerts.json
 python -m sre_toolkit report examples/slo-snapshots.json
 python -m sre_toolkit burn examples/burn-samples.json      # exit 1 when a critical rule fires
 python -m sre_toolkit postmortem examples/incident.json
+python -m sre_toolkit slo-doc examples/slo-definition.json
 ```
 
 ## Tests
@@ -65,7 +69,7 @@ python -m sre_toolkit postmortem examples/incident.json
 python -m unittest discover -s tests -v
 ```
 
-62 tests cover the budget math (including boundary and validation cases),
+71 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
 postmortem rendering, report rendering, and the CLI commands.
 
@@ -78,7 +82,8 @@ sre_toolkit/
   postmortem.py     # structured incident -> Markdown postmortem
   burn_alerts.py    # multi-window burn-rate alerting rules
   report.py         # Markdown SLO status report from window snapshots
-  __main__.py       # CLI: budget / downtime / triage / report / burn / postmortem
+  slo_doc.py        # Markdown SLO definition documents
+  __main__.py       # CLI: budget / downtime / triage / report / burn / postmortem / slo-doc
 tests/              # unittest suite, no external dependencies
 examples/           # sample alert input for the CLI
 ```
