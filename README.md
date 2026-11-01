@@ -20,7 +20,8 @@ need to be right. This toolkit makes them scriptable:
 - **Burn-rate alerts** - multi-window alerting (page at 14.4x over 1h+5m,
   ticket at 6x over 6h+30m) that only fires when burn is elevated on both the
   long and short window, so blips never page anyone. The `burn` CLI accepts
-  custom rules in its JSON spec when the defaults do not fit a service.
+  custom rules in its JSON spec when the defaults do not fit a service, and
+  emits the firing rules as JSON (`--json`) for paging pipelines.
 - **Status reports** - render a Markdown SLO status report (table plus
   plain-language status lines) from a JSON list of SLO window snapshots;
   exits 1 when any budget is exhausted, so it can gate a cron job or CI
@@ -71,7 +72,7 @@ python -m sre_toolkit slo-doc examples/slo-definition.json
 python -m unittest discover -s tests -v
 ```
 
-76 tests cover the budget math (including boundary and validation cases),
+78 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
 postmortem rendering, report rendering, and the CLI commands.
 
