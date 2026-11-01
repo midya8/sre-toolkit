@@ -727,3 +727,28 @@ class TestTriageSilences(unittest.TestCase):
                 capture_output=True, text=True)
         self.assertEqual(out.returncode, 2)
         self.assertIn("bad silences file", out.stderr)
+
+
+class TestBurnSuggest(unittest.TestCase):
+    def _run(self, *argv):
+        import subprocess, sys
+        return subprocess.run([sys.executable, "-m", "sre_toolkit", "burn", *argv],
+                              capture_output=True, text=True)
+
+    def test_suggest_emits_a_usable_policy_template(self):
+        import json as _json
+        out = self._run("--suggest", "--slo", "0.999")
+        self.assertEqual(out.returncode, 0)
+        payload = _json.loads(out.stdout)
+        self.assertEqual(payload["slo"], 0.999)
+        self.assertEqual(payload["samples"], [])
+        self.assertAlmostEqual(payload["rules"][0]["burn_threshold"], 14.4, places=3)
+
+    def test_suggest_validates_inputs(self):
+        self.assertEqual(self._run("--suggest", "--slo", "1.5").returncode, 2)
+        self.assertEqual(self._run("--suggest", "--window-days", "2").returncode, 2)
+
+    def test_burn_without_file_or_suggest_exit_2(self):
+        out = self._run()
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("--suggest", out.stderr)

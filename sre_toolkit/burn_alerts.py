@@ -46,6 +46,35 @@ DEFAULT_RULES = (
 )
 
 
+def suggest_rules(slo: float, window_days: float = 30.0) -> tuple[BurnRule, ...]:
+    """The standard three-tier multi-window policy for an SLO window.
+
+    From the SRE workbook alerting table, generalized to any window:
+    a page when 2% of the window's budget burns in one hour, a fast
+    ticket at 5% in six hours, and a slow ticket at 10% in three days.
+    Burn thresholds scale with the window (14.4x / 6x / 1x at 30 days);
+    the windows themselves do not. Raises ValueError for an SLO outside
+    (0, 1) or a window too short to hold the three-day rule.
+    """
+    if not 0 < slo < 1:
+        raise ValueError(f"slo must be between 0 and 1, got {slo!r}")
+    if window_days < 3:
+        raise ValueError(
+            f"window must be at least 3 days for the slow-burn rule, got {window_days!r}")
+    window_hours = window_days * 24.0
+
+    def burn_for(budget_fraction: float, hours: float) -> float:
+        # The burn rate that consumes budget_fraction of the window's
+        # budget within `hours`: fraction / (hours / total_hours).
+        return budget_fraction / (hours / window_hours)
+
+    return (
+        BurnRule("page", "critical", round(burn_for(0.02, 1.0), 3), 1.0, 5.0 / 60.0),
+        BurnRule("ticket-fast", "high", round(burn_for(0.05, 6.0), 3), 6.0, 0.5),
+        BurnRule("ticket-slow", "medium", round(burn_for(0.1, 72.0), 3), 72.0, 6.0),
+    )
+
+
 def burn_rate(slo: float, total_events: int, bad_events: int) -> float:
     """Burn rate for one window: observed error ratio relative to budget."""
     return compute_error_budget(slo, total_events, bad_events).burn_rate
