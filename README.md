@@ -69,7 +69,7 @@ python -m sre_toolkit slo-doc examples/slo-definition.json
 python -m unittest discover -s tests -v
 ```
 
-71 tests cover the budget math (including boundary and validation cases),
+74 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
 postmortem rendering, report rendering, and the CLI commands.
 

@@ -96,6 +96,34 @@ class TestBurnCLI(unittest.TestCase):
         self.assertIn("No burn-rate rules firing.", out)
 
 
+class TestTriageCLI(unittest.TestCase):
+    ALERTS = [
+        {"alert_id": "a1", "service": "web", "summary": "Weekly report ready"},
+        {"alert_id": "a2", "service": "api", "summary": "Service down"},
+        {"alert_id": "a3", "service": "api", "summary": "Error rate elevated"},
+    ]
+
+    def test_by_service_groups_and_worst(self):
+        code, out = _run(["triage", "--by-service"], self.ALERTS)
+        self.assertEqual(code, 0)
+        self.assertIn("api (2 alerts, worst: critical)", out)
+        self.assertIn("web (1 alert, worst: low)", out)
+        self.assertLess(out.index("api"), out.index("web"))
+
+    def test_json_output(self):
+        code, out = _run(["triage", "--json"], self.ALERTS)
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(len(data), 3)
+        self.assertEqual(data[0]["severity"], "critical")
+        self.assertEqual(data[0]["service"], "api")
+
+    def test_default_output_unchanged(self):
+        code, out = _run(["triage"], self.ALERTS)
+        self.assertEqual(code, 0)
+        self.assertIn("[critical] api", out)
+
+
 class TestBurnCustomRules(unittest.TestCase):
     SPEC = {
         "slo": 0.99,
