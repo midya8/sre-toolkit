@@ -447,6 +447,22 @@ class TestReportCLI(unittest.TestCase):
         self.assertIn("# SLO status report", out)
         self.assertIn("| api |", out)
 
+    def test_worst_first_sorts_rows(self):
+        code, out = _run(["report", "--worst-first"], [
+            {"name": "api", "slo": 0.999, "total": 10000, "bad": 5},
+            {"name": "worker", "slo": 0.99, "total": 1000, "bad": 8},
+        ])
+        self.assertEqual(code, 0)
+        self.assertLess(out.index("| worker |"), out.index("| api |"))
+
+    def test_worst_first_json_sorted(self):
+        code, out = _run(["report", "--json", "--worst-first"], [
+            {"name": "api", "slo": 0.999, "total": 10000, "bad": 5},
+            {"name": "worker", "slo": 0.99, "total": 1000, "bad": 8},
+        ])
+        self.assertEqual(code, 0)
+        self.assertLess(out.index('"worker"'), out.index('"api"'))
+
     def test_exit_1_when_any_budget_exhausted(self):
         code, _ = _run(["report"], [
             {"name": "api", "slo": 0.999, "total": 1000, "bad": 10},
