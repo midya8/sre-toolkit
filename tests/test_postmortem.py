@@ -124,6 +124,9 @@ class TestSummarizeIncidents(unittest.TestCase):
         self.assertEqual(stats.skipped, 0)
         self.assertEqual(stats.mean_time_to_detect, timedelta(minutes=18, seconds=30))
         self.assertEqual(stats.median_time_to_resolve, timedelta(minutes=59))
+        # nearest-rank p90 with two incidents is the slower one
+        self.assertEqual(stats.p90_time_to_detect, timedelta(minutes=30))
+        self.assertEqual(stats.p90_time_to_resolve, timedelta(minutes=88))
 
     def test_unparseable_incidents_skipped(self):
         good = Incident("a", "high", "2026-10-30 14:05 UTC", "2026-10-30 14:12 UTC",
@@ -133,6 +136,7 @@ class TestSummarizeIncidents(unittest.TestCase):
         self.assertEqual(stats.incidents, 1)
         self.assertEqual(stats.skipped, 1)
         self.assertEqual(stats.mean_time_to_detect, timedelta(minutes=7))
+        self.assertEqual(stats.p90_time_to_detect, timedelta(minutes=7))
 
     def test_none_when_nothing_computable(self):
         bad = Incident("c", "low", "unknown", "unknown", "unknown", (), "s", "i", "r")

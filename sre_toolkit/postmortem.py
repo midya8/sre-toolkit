@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -80,14 +81,25 @@ class IncidentStats:
 
     ``skipped`` counts incidents whose timestamps did not yield metrics -
     they are excluded from the aggregates, never silently averaged in.
+    The p90 fields use nearest-rank, so with few incidents they equal the
+    worst incident - honest for small samples.
     """
 
     incidents: int
     skipped: int
     mean_time_to_detect: timedelta
     median_time_to_detect: timedelta
+    p90_time_to_detect: timedelta
     mean_time_to_resolve: timedelta
     median_time_to_resolve: timedelta
+    p90_time_to_resolve: timedelta
+
+
+def _percentile(deltas: list[timedelta], pct: float) -> timedelta:
+    """Nearest-rank percentile over timedeltas."""
+    ordered = sorted(deltas)
+    rank = max(1, math.ceil(pct / 100 * len(ordered)))
+    return ordered[rank - 1]
 
 
 def summarize_incidents(incidents: list[Incident]) -> IncidentStats | None:
@@ -106,8 +118,10 @@ def summarize_incidents(incidents: list[Incident]) -> IncidentStats | None:
         skipped=len(incidents) - len(metrics),
         mean_time_to_detect=sum(ttds, timedelta()) / len(ttds),
         median_time_to_detect=statistics.median(ttds),
+        p90_time_to_detect=_percentile(ttds, 90),
         mean_time_to_resolve=sum(ttrs, timedelta()) / len(ttrs),
         median_time_to_resolve=statistics.median(ttrs),
+        p90_time_to_resolve=_percentile(ttrs, 90),
     )
 
 
