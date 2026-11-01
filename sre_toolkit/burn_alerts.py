@@ -12,6 +12,7 @@ Default rules:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from .error_budget import compute_error_budget
 
@@ -118,3 +119,99 @@ def evaluate_rules(
             firing.append(rule)
     severity_rank = {"critical": 0, "high": 1}
     return sorted(firing, key=lambda r: severity_rank.get(r.severity, 2))
+
+
+def _parse_bucket_ts(raw: object, where: str) -> datetime:
+    """One bucket timestamp: ISO-8601, naive values assumed UTC."""
+    if not isinstance(raw, str):
+        raise ValueError(f"{where}: timestamp must be a string, got {raw!r}")
+    try:
+        ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{where}: unparseable timestamp {raw!r}") from exc
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts
+
+
+def replay_rules(
+    slo: float,
+    buckets: list[dict],
+    rules: tuple[BurnRule, ...] = DEFAULT_RULES,
+) -> list[dict]:
+    """Replay a time series of observations through the burn rules.
+
+    ``buckets`` are point observations -
+    ``{"timestamp": ISO-8601, "total": n, "bad": n}`` - and each bucket
+    timestamp is a tick. At a tick t, a rule's window (t - w, t] sums the
+    buckets whose timestamps fall inside it; the rule fires at that tick
+    when both its long and short windows are evaluable (non-empty) and
+    meet the burn threshold. The result lists, per rule, every firing
+    interval (first to last consecutive firing tick) plus the firing
+    tick count - the "would this policy have paged us, and for how long"
+    answer for alert-policy tuning. Raises ValueError for bad buckets.
+    """
+    points: list[tuple[datetime, int, int]] = []
+    for i, raw in enumerate(buckets):
+        where = f"bucket #{i + 1}"
+        if not isinstance(raw, dict):
+            raise ValueError(f"{where} must be an object")
+        ts = _parse_bucket_ts(raw.get("timestamp"), where)
+        try:
+            total = int(raw["total"])
+            bad = int(raw["bad"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"{where}: needs integer 'total' and 'bad'") from exc
+        if total < 0 or bad < 0 or bad > total:
+            raise ValueError(
+                f"{where}: bad must satisfy 0 <= bad <= total, "
+                f"got total={total}, bad={bad}")
+        points.append((ts, total, bad))
+    if not points:
+        raise ValueError("replay needs at least one bucket")
+    points.sort(key=lambda point: point[0])
+    ticks = sorted({ts for ts, _, _ in points})
+
+    def window_burn(tick: datetime, hours: float) -> float | None:
+        total = bad = 0
+        start = tick - timedelta(hours=hours)
+        for ts, t, b in points:
+            if start < ts <= tick:
+                total += t
+                bad += b
+        if total == 0:
+            return None
+        return burn_rate(slo, total, bad)
+
+    eps = 1e-9
+    severity_rank = {"critical": 0, "high": 1}
+    reports = []
+    for rule in rules:
+        firing_idx = []
+        for i, tick in enumerate(ticks):
+            long_burn = window_burn(tick, rule.long_window_hours)
+            short_burn = window_burn(tick, rule.short_window_hours)
+            if (long_burn is not None and short_burn is not None
+                    and long_burn >= rule.burn_threshold - eps
+                    and short_burn >= rule.burn_threshold - eps):
+                firing_idx.append(i)
+        intervals = []
+        for i in firing_idx:
+            if intervals and i == intervals[-1]["_last_idx"] + 1:
+                intervals[-1]["end"] = ticks[i]
+                intervals[-1]["_last_idx"] = i
+                intervals[-1]["ticks"] += 1
+            else:
+                intervals.append({"start": ticks[i], "end": ticks[i],
+                                  "_last_idx": i, "ticks": 1})
+        reports.append({
+            "name": rule.name,
+            "severity": rule.severity,
+            "burn_threshold": rule.burn_threshold,
+            "long_window_hours": rule.long_window_hours,
+            "short_window_hours": rule.short_window_hours,
+            "firing_ticks": len(firing_idx),
+            "intervals": [{k: v for k, v in iv.items() if not k.startswith("_")}
+                          for iv in intervals],
+        })
+    return sorted(reports, key=lambda r: severity_rank.get(r["severity"], 2))
