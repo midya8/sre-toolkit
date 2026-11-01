@@ -7,6 +7,7 @@ Subcommands:
     report      render a Markdown SLO status report from a JSON list
     burn        evaluate multi-window burn-rate rules from a JSON spec
     postmortem  render a Markdown postmortem from a JSON incident
+    metrics     aggregate time-to-detect/resolve across incidents
     slo-doc     render a Markdown SLO definition from a JSON spec
 """
 
@@ -23,7 +24,7 @@ from .error_budget import (
     compute_error_budget,
     time_to_exhaustion_days,
 )
-from .postmortem import Incident, render_postmortem
+from .postmortem import Incident, _format_duration, render_postmortem, summarize_incidents
 from .report import SLOSnapshot, render_report
 from .slo_doc import SLODefinition, render_slo_doc
 
@@ -171,9 +172,8 @@ def _cmd_burn(args: argparse.Namespace) -> int:
     return 1 if any(rule.severity == "critical" for rule in firing) else 0
 
 
-def _cmd_postmortem(args: argparse.Namespace) -> int:
-    raw = json.load(sys.stdin if args.file == "-" else open(args.file))
-    incident = Incident(
+def _incident_from(raw: dict) -> Incident:
+    return Incident(
         title=raw["title"],
         severity=raw["severity"],
         started=raw["started"],
@@ -186,7 +186,26 @@ def _cmd_postmortem(args: argparse.Namespace) -> int:
         timeline=tuple(tuple(pair) for pair in raw.get("timeline", ())),
         action_items=tuple(raw.get("action_items", ())),
     )
-    print(render_postmortem(incident), end="")
+
+
+def _cmd_postmortem(args: argparse.Namespace) -> int:
+    raw = json.load(sys.stdin if args.file == "-" else open(args.file))
+    print(render_postmortem(_incident_from(raw)), end="")
+    return 0
+
+
+def _cmd_metrics(args: argparse.Namespace) -> int:
+    raw = json.load(sys.stdin if args.file == "-" else open(args.file))
+    stats = summarize_incidents([_incident_from(item) for item in raw])
+    if stats is None:
+        print("error: no incidents with computable response metrics", file=sys.stderr)
+        return 2
+    skipped = f" ({stats.skipped} skipped, timestamps unparseable)" if stats.skipped else ""
+    print(f"Incidents analyzed: {stats.incidents}{skipped}")
+    print(f"Time to detect:  mean {_format_duration(stats.mean_time_to_detect)}, "
+          f"median {_format_duration(stats.median_time_to_detect)}")
+    print(f"Time to resolve: mean {_format_duration(stats.mean_time_to_resolve)}, "
+          f"median {_format_duration(stats.median_time_to_resolve)}")
     return 0
 
 
@@ -242,6 +261,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("postmortem", help="render a Markdown postmortem from a JSON incident ('-' for stdin)")
     p.add_argument("file")
     p.set_defaults(func=_cmd_postmortem)
+
+    p = sub.add_parser("metrics", help="aggregate TTD/TTR across a JSON list of incidents ('-' for stdin)")
+    p.add_argument("file")
+    p.set_defaults(func=_cmd_metrics)
 
     p = sub.add_parser("slo-doc", help="render a Markdown SLO definition from a JSON spec ('-' for stdin)")
     p.add_argument("file")
