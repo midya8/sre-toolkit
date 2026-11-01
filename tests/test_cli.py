@@ -816,3 +816,51 @@ class TestMetricsActionItemsOnly(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("No incidents with parseable timestamps.", out)
         self.assertIn("Action items: 1 open across 1 incidents", out)
+
+
+class TestBurnReplayCLI(unittest.TestCase):
+    QUIET = {"slo": 0.999, "buckets": [
+        {"timestamp": f"2026-10-31T20:{m:02d}:00Z", "total": 30000, "bad": 20}
+        for m in range(0, 60, 5)]}
+    HOT = {"slo": 0.999, "buckets": [
+        {"timestamp": f"2026-10-31T20:{m:02d}:00Z", "total": 30000,
+         "bad": 3000 if 30 <= m < 45 else 20}
+        for m in range(0, 60, 5)]}
+
+    def test_text_quiet_never_fired(self):
+        code, out = _run(["burn", "--replay"], self.QUIET)
+        self.assertEqual(code, 0)
+        self.assertIn("Replay over 12 buckets:", out)
+        self.assertIn("page: never fired", out)
+        self.assertIn("ticket: never fired", out)
+
+    def test_text_hot_lists_interval_and_exits_1(self):
+        code, out = _run(["burn", "--replay"], self.HOT)
+        self.assertEqual(code, 1)
+        self.assertIn("page: fired 2026-10-31T20:30:00+00:00 -> "
+                      "2026-10-31T20:40:00+00:00 (3 ticks)", out)
+
+    def test_json_report(self):
+        code, out = _run(["burn", "--replay", "--json"], self.HOT)
+        self.assertEqual(code, 1)
+        data = json.loads(out)
+        self.assertEqual(data["buckets"], 12)
+        page = next(r for r in data["rules"] if r["name"] == "page")
+        self.assertEqual(page["firing_ticks"], 3)
+        self.assertEqual(page["intervals"][0]["start"],
+                         "2026-10-31T20:30:00+00:00")
+        ticket = next(r for r in data["rules"] if r["name"] == "ticket")
+        self.assertGreater(ticket["firing_ticks"], 0)
+
+    def test_custom_rules_in_replay_file(self):
+        spec = dict(self.HOT, rules=[{
+            "name": "any-error", "severity": "medium", "burn_threshold": 0.5,
+            "long_window_hours": 1, "short_window_hours": 5 / 60}])
+        code, out = _run(["burn", "--replay"], spec)
+        self.assertEqual(code, 0)  # no critical rule -> exit 0
+        self.assertIn("any-error", out)
+        self.assertNotIn("page:", out)
+
+    def test_bad_replay_file_exits_2(self):
+        code, out = _run(["burn", "--replay"], {"slo": 0.999, "buckets": []})
+        self.assertEqual(code, 2)
