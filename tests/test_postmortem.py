@@ -1,7 +1,7 @@
 import unittest
 from datetime import timedelta
 
-from sre_toolkit.postmortem import Incident, render_postmortem, response_metrics
+from sre_toolkit.postmortem import Incident, render_postmortem, response_metrics, summarize_incidents
 
 
 def sample_incident() -> Incident:
@@ -111,6 +111,33 @@ class TestResponseMetrics(unittest.TestCase):
             services=(), summary="s", impact="i", root_cause="rc",
         )
         self.assertIsNone(response_metrics(incident))
+
+
+class TestSummarizeIncidents(unittest.TestCase):
+    def test_aggregates(self):
+        i1 = Incident("a", "high", "2026-10-30 14:05 UTC", "2026-10-30 14:12 UTC",
+                      "2026-10-30 15:40 UTC", (), "s", "i", "r")
+        i2 = Incident("b", "low", "2026-10-28 09:00 UTC", "2026-10-28 09:30 UTC",
+                      "2026-10-28 10:00 UTC", (), "s", "i", "r")
+        stats = summarize_incidents([i1, i2])
+        self.assertEqual(stats.incidents, 2)
+        self.assertEqual(stats.skipped, 0)
+        self.assertEqual(stats.mean_time_to_detect, timedelta(minutes=18, seconds=30))
+        self.assertEqual(stats.median_time_to_resolve, timedelta(minutes=59))
+
+    def test_unparseable_incidents_skipped(self):
+        good = Incident("a", "high", "2026-10-30 14:05 UTC", "2026-10-30 14:12 UTC",
+                        "2026-10-30 15:40 UTC", (), "s", "i", "r")
+        bad = Incident("c", "low", "unknown", "unknown", "unknown", (), "s", "i", "r")
+        stats = summarize_incidents([good, bad])
+        self.assertEqual(stats.incidents, 1)
+        self.assertEqual(stats.skipped, 1)
+        self.assertEqual(stats.mean_time_to_detect, timedelta(minutes=7))
+
+    def test_none_when_nothing_computable(self):
+        bad = Incident("c", "low", "unknown", "unknown", "unknown", (), "s", "i", "r")
+        self.assertIsNone(summarize_incidents([bad]))
+        self.assertIsNone(summarize_incidents([]))
 
 
 if __name__ == "__main__":
