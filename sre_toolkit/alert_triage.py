@@ -103,6 +103,24 @@ def triage(alerts: list[Alert], rules=_DEFAULT_RULES) -> list[Alert]:
     return sorted(unique, key=lambda a: (rank[a.severity], a.service, a.alert_id))
 
 
+def inhibit_by_critical(alerts: list[Alert]) -> tuple[list[Alert], list[Alert]]:
+    """Suppress lower-severity alerts on services with an active critical.
+
+    Same idea as Alertmanager inhibit rules: when a service is in a known
+    outage, its high/medium/low alerts are symptoms of the same fire, and
+    paging on them too only buries the cause. Returns (kept, inhibited),
+    both preserving input order.
+    """
+    critical_services = {a.service for a in alerts if a.severity == "critical"}
+    kept, inhibited = [], []
+    for alert in alerts:
+        if alert.severity != "critical" and alert.service in critical_services:
+            inhibited.append(alert)
+        else:
+            kept.append(alert)
+    return kept, inhibited
+
+
 def group_by_service(alerts: list[Alert]) -> dict[str, list[Alert]]:
     """Group alerts by service, preserving each alert's input order."""
     grouped: dict[str, list[Alert]] = {}
