@@ -172,6 +172,34 @@ class TestTriageCLI(unittest.TestCase):
         self.assertIn("Service down (x2)", out)
 
 
+class TestTriageCustomRules(unittest.TestCase):
+    ALERTS = [
+        {"alert_id": "a1", "service": "api", "summary": "SEV1 customer impact"},
+        {"alert_id": "a2", "service": "api", "summary": "flaky CI"},
+    ]
+
+    def _run_with_rules(self, rules):
+        with tempfile.TemporaryDirectory() as tmp:
+            alerts = Path(tmp) / "alerts.json"
+            alerts.write_text(json.dumps(self.ALERTS))
+            spec = Path(tmp) / "rules.json"
+            spec.write_text(json.dumps(rules))
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(["triage", str(alerts), "--rules", str(spec)])
+            return code, buf.getvalue()
+
+    def test_custom_rules_applied(self):
+        code, out = self._run_with_rules({"critical": ["sev1"], "medium": ["flaky"]})
+        self.assertEqual(code, 0)
+        self.assertIn("[critical] api", out)
+        self.assertIn("[medium  ] api", out)
+
+    def test_bad_rules_exit_2(self):
+        code, out = self._run_with_rules({"urgent": ["now"]})
+        self.assertEqual(code, 2)
+
+
 class TestBurnCustomRules(unittest.TestCase):
     SPEC = {
         "slo": 0.99,
