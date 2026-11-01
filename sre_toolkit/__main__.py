@@ -7,6 +7,7 @@ Subcommands:
     report      render a Markdown SLO status report from a JSON list
     burn        evaluate multi-window burn-rate rules from a JSON spec
     postmortem  render a Markdown postmortem from a JSON incident
+    slo-doc     render a Markdown SLO definition from a JSON spec
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from .error_budget import (
 )
 from .postmortem import Incident, render_postmortem
 from .report import SLOSnapshot, render_report
+from .slo_doc import SLODefinition, render_slo_doc
 
 
 def _cmd_budget(args: argparse.Namespace) -> int:
@@ -147,6 +149,21 @@ def _cmd_postmortem(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_slo_doc(args: argparse.Namespace) -> int:
+    raw = json.load(sys.stdin if args.file == "-" else open(args.file))
+    definition = SLODefinition(
+        name=raw["name"],
+        service=raw["service"],
+        target=float(raw["target"]),
+        window_days=float(raw["window_days"]),
+        sli=raw["sli"],
+        description=raw.get("description", ""),
+        alert_thresholds=tuple(raw.get("alert_thresholds", ())),
+    )
+    print(render_slo_doc(definition), end="")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sre_toolkit")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -180,6 +197,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("postmortem", help="render a Markdown postmortem from a JSON incident ('-' for stdin)")
     p.add_argument("file")
     p.set_defaults(func=_cmd_postmortem)
+
+    p = sub.add_parser("slo-doc", help="render a Markdown SLO definition from a JSON spec ('-' for stdin)")
+    p.add_argument("file")
+    p.set_defaults(func=_cmd_slo_doc)
 
     args = parser.parse_args(argv)
     return args.func(args)
