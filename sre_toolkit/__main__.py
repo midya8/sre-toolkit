@@ -18,7 +18,8 @@ import json
 import sys
 
 from .alert_triage import (Alert, dedupe_key, duplicate_counts, group_by_service,
-                           inhibit_by_critical, rules_from_dict, top_talkers, triage)
+                           inhibit_by_critical, rules_from_dict, severity_counts,
+                           top_talkers, triage)
 from .burn_alerts import BurnRule, BurnSample, evaluate_rules
 from .error_budget import (
     allowed_downtime_minutes,
@@ -26,8 +27,10 @@ from .error_budget import (
     time_to_exhaustion_days,
 )
 from .postmortem import (Incident, _format_duration, render_postmortem, response_metrics,
-                         summarize_by_severity, summarize_by_week, summarize_incidents)
-from .report import SLOSnapshot, consumed_fraction, render_report, snapshot_summary
+                         summarize_by_severity, summarize_by_service, summarize_by_week,
+                         summarize_incidents)
+from .report import (SLOSnapshot, consumed_fraction, fleet_summary, render_report,
+                     snapshot_summary)
 from .slo_doc import SLODefinition, render_slo_doc, slo_doc_payload
 
 
@@ -119,6 +122,8 @@ def _cmd_triage(args: argparse.Namespace) -> int:
              "occurrences": counts[dedupe_key(a)]}
             for a in alerts
         ]}
+        if args.by_severity:
+            payload["by_severity"] = severity_counts(alerts)
         if args.top_talkers:
             payload["top_talkers"] = [
                 {"alert_id": a.alert_id, "service": a.service,
@@ -135,7 +140,7 @@ def _cmd_triage(args: argparse.Namespace) -> int:
                 for a in inhibited
             ]
             print(json.dumps(payload, indent=2))
-        elif args.top_talkers:
+        elif args.top_talkers or args.by_severity:
             print(json.dumps(payload, indent=2))
         else:
             print(json.dumps(payload["alerts"], indent=2))
@@ -147,6 +152,13 @@ def _cmd_triage(args: argparse.Namespace) -> int:
             print(f"{service} ({n} alert{'' if n == 1 else 's'}, worst: {worst})")
             for alert in group:
                 print(f"  [{alert.severity:8s}] {alert.summary}{_suffix(alert)}")
+        return 0
+    if args.by_severity:
+        counts = severity_counts(alerts)
+        print("Severity counts:",
+              ", ".join(f"{sev} {n}" for sev, n in counts.items()) or "none")
+        if args.inhibit and inhibited:
+            print(f"({len(inhibited)} inhibited not counted)")
         return 0
     if args.top_talkers:
         print("Top talkers (deduped, by occurrences):")
@@ -184,12 +196,15 @@ def _cmd_report(args: argparse.Namespace) -> int:
     if args.worst_first:
         snapshots.sort(key=consumed_fraction, reverse=True)
     if args.json:
-        print(json.dumps({
+        payload = {
             "slos": [snapshot_summary(snap) for snap in snapshots],
             "exhausted": exhausted,
-        }, indent=2))
+        }
+        if args.summary:
+            payload["fleet_summary"] = fleet_summary(snapshots)
+        print(json.dumps(payload, indent=2))
     else:
-        print(render_report(snapshots), end="")
+        print(render_report(snapshots, include_summary=args.summary), end="")
     return 1 if exhausted else 0
 
 
@@ -296,6 +311,15 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
         return 2
     if args.json:
         summary = _metrics_summary(stats, incidents)
+        if args.by_service:
+            summary["by_service"] = {
+                service: {
+                    "incidents": group.incidents,
+                    "mean_time_to_detect_minutes": _minutes(group.mean_time_to_detect),
+                    "mean_time_to_resolve_minutes": _minutes(group.mean_time_to_resolve),
+                }
+                for service, group in sorted(summarize_by_service(incidents).items())
+            }
         if args.by_week:
             summary["by_week"] = [
                 {"week": label,
@@ -321,6 +345,14 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
             print(f"  {severity}: n={group.incidents}, "
                   f"mean TTD {_format_duration(group.mean_time_to_detect)}, "
                   f"mean TTR {_format_duration(group.mean_time_to_resolve)}")
+    if args.by_service:
+        by_service = summarize_by_service(incidents)
+        if by_service:
+            print("By service:")
+            for service, group in sorted(by_service.items()):
+                print(f"  {service}: n={group.incidents}, "
+                      f"mean TTD {_format_duration(group.mean_time_to_detect)}, "
+                      f"mean TTR {_format_duration(group.mean_time_to_resolve)}")
     if args.by_week:
         weekly = summarize_by_week(incidents)
         if weekly:
@@ -414,6 +446,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="group output by service with counts and worst severity")
     p.add_argument("--top-talkers", action="store_true",
                    help="rank deduped alerts by occurrence count, noisiest first")
+    p.add_argument("--by-severity", action="store_true",
+                   help="print deduped alert counts per severity and exit")
     p.add_argument("--json", action="store_true", help="emit the triaged alerts as JSON")
     p.add_argument("--inhibit", action="store_true",
                    help="suppress lower-severity alerts on services with an active critical")
@@ -421,6 +455,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("report", help="Markdown SLO status report from a JSON file ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--summary", action="store_true",
+                   help="append a fleet roll-up (counts per status class, worst SLO)")
     p.add_argument("--json", action="store_true",
                    help="emit per-SLO budget details as JSON instead of Markdown")
     p.add_argument("--worst-first", action="store_true",
@@ -442,6 +478,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("file")
     p.add_argument("--by-week", action="store_true",
                    help="also bucket the aggregates by ISO week of resolution (trend view)")
+    p.add_argument("--by-service", action="store_true",
+                   help="also aggregate per affected service (incidents count toward each service they list)")
     p.add_argument("--json", action="store_true",
                    help="emit the aggregates as JSON (durations in minutes)")
     p.set_defaults(func=_cmd_metrics)

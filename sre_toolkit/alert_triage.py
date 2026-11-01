@@ -173,3 +173,16 @@ def top_talkers(alerts: list[Alert], limit: int = 10, rules=_DEFAULT_RULES) -> l
                                  rank.get(pair[0].severity, len(rank)),
                                  pair[0].service, pair[0].summary))
     return pairs[:limit]
+
+
+def severity_counts(alerts: list[Alert]) -> dict[str, int]:
+    """Deduped alert counts per severity, most severe first.
+
+    The fleet-level read of a triaged stream: how much of each severity
+    is active right now. Keys follow SEVERITY_ORDER; severities with no
+    alerts are omitted.
+    """
+    counts: dict[str, int] = {}
+    for alert in alerts:
+        counts[alert.severity] = counts.get(alert.severity, 0) + 1
+    return {sev: counts[sev] for sev in SEVERITY_ORDER if sev in counts}

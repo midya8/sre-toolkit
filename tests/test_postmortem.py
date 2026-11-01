@@ -2,8 +2,8 @@ import unittest
 from datetime import timedelta
 
 from sre_toolkit.postmortem import (Incident, render_postmortem, response_metrics,
-                                    summarize_by_severity, summarize_by_week,
-                                    summarize_incidents)
+                                    summarize_by_severity, summarize_by_service,
+                                    summarize_by_week, summarize_incidents)
 
 
 def sample_incident() -> Incident:
@@ -190,6 +190,37 @@ class TestSummarizeByWeek(unittest.TestCase):
                      "2026-10-30 03:05 UTC", (), "s", "i", "r"),   # TTR 3h
         ])
         self.assertEqual(weekly[0][1].mean_time_to_resolve, timedelta(hours=2, minutes=30))
+
+
+class TestSummarizeByService(unittest.TestCase):
+    @staticmethod
+    def inc(title, services, resolved="2026-10-30 15:40 UTC"):
+        return Incident(
+            title=title, severity="high",
+            started="2026-10-30 14:05 UTC", detected="2026-10-30 14:12 UTC",
+            resolved=resolved, services=services,
+            summary="s", impact="i", root_cause="r",
+        )
+
+    def test_groups_by_each_listed_service(self):
+        groups = summarize_by_service([
+            self.inc("a", ("checkout", "payments")),
+            self.inc("b", ("checkout",)),
+        ])
+        self.assertEqual(groups["checkout"].incidents, 2)
+        self.assertEqual(groups["payments"].incidents, 1)
+
+    def test_incidents_without_services_omitted(self):
+        groups = summarize_by_service([self.inc("a", ())])
+        self.assertEqual(groups, {})
+
+    def test_uncomputable_group_omitted(self):
+        groups = summarize_by_service([
+            self.inc("a", ("web",), resolved="unknown"),
+            self.inc("b", ("web",)),
+        ])
+        self.assertEqual(groups["web"].incidents, 1)
+        self.assertEqual(groups["web"].skipped, 1)
 
 
 if __name__ == "__main__":

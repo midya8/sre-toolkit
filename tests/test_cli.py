@@ -584,5 +584,80 @@ class TestTopTalkersCLI(unittest.TestCase):
         self.assertNotIn("Top talkers", out)
 
 
+class TestReportSummaryCLI(unittest.TestCase):
+    SNAPS = [
+        {"name": "healthy-api", "slo": 0.999, "total": 10000, "bad": 1},
+        {"name": "down-api", "slo": 0.999, "total": 10000, "bad": 20},
+    ]
+
+    def test_summary_text(self):
+        code, out = _run(["report", "--summary"], self.SNAPS)
+        self.assertEqual(code, 1)  # down-api is exhausted: report still gates
+        self.assertIn("## Fleet summary", out)
+        self.assertIn("- Worst: down-api", out)
+
+    def test_summary_json(self):
+        code, out = _run(["report", "--json", "--summary"], self.SNAPS)
+        self.assertEqual(code, 1)
+        summary = json.loads(out)["fleet_summary"]
+        self.assertEqual(summary["exhausted"], 1)
+        self.assertEqual(summary["worst_slo"], "down-api")
+
+    def test_summary_absent_without_flag(self):
+        code, out = _run(["report", "--json"], self.SNAPS)
+        self.assertNotIn("fleet_summary", json.loads(out))
+
+
+class TestTriageBySeverityCLI(unittest.TestCase):
+    ALERTS = [
+        {"alert_id": "a", "service": "web", "summary": "Service down"},
+        {"alert_id": "b", "service": "db", "summary": "Error rate elevated"},
+        {"alert_id": "c", "service": "db", "summary": "Weekly report ready"},
+    ]
+
+    def test_text_output(self):
+        code, out = _run(["triage", "--by-severity"], self.ALERTS)
+        self.assertEqual(code, 0)
+        self.assertIn("Severity counts: critical 1, high 1, low 1", out)
+
+    def test_json_output(self):
+        code, out = _run(["triage", "--json", "--by-severity"], self.ALERTS)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["by_severity"],
+                         {"critical": 1, "high": 1, "low": 1})
+
+
+class TestMetricsByServiceCLI(unittest.TestCase):
+    INCIDENTS = [
+        {"title": "a", "severity": "high", "started": "2026-10-30 14:05 UTC",
+         "detected": "2026-10-30 14:12 UTC", "resolved": "2026-10-30 15:40 UTC",
+         "services": ["checkout", "payments"], "summary": "s", "impact": "i",
+         "root_cause": "r"},
+        {"title": "b", "severity": "low", "started": "2026-10-29 09:00 UTC",
+         "detected": "2026-10-29 09:10 UTC", "resolved": "2026-10-29 10:00 UTC",
+         "services": ["checkout"], "summary": "s", "impact": "i",
+         "root_cause": "r"},
+    ]
+
+    def test_text_output(self):
+        code, out = _run(["metrics", "--by-service"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        self.assertIn("By service:", out)
+        self.assertIn("checkout: n=2", out)
+        self.assertIn("payments: n=1", out)
+
+    def test_json_output(self):
+        code, out = _run(["metrics", "--json", "--by-service"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        by_service = json.loads(out)["by_service"]
+        self.assertEqual(by_service["checkout"]["incidents"], 2)
+        self.assertEqual(by_service["payments"]["incidents"], 1)
+
+    def test_absent_without_flag(self):
+        code, out = _run(["metrics"], self.INCIDENTS)
+        self.assertEqual(code, 0)
+        self.assertNotIn("By service:", out)
+
+
 if __name__ == "__main__":
     unittest.main()

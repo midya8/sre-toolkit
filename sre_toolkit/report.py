@@ -124,12 +124,14 @@ def consumed_fraction(snapshot: SLOSnapshot) -> float:
     ).consumed_fraction
 
 
-def render_report(snapshots: list[SLOSnapshot], worst_first: bool = False) -> str:
+def render_report(snapshots: list[SLOSnapshot], worst_first: bool = False,
+                  include_summary: bool = False) -> str:
     """Render snapshots as a Markdown SLO status report.
 
     With ``worst_first``, rows and status lines sort by budget consumed
     (most consumed first) so a long fleet review surfaces the SLOs that
-    need action; input order is preserved otherwise.
+    need action; input order is preserved otherwise. ``include_summary``
+    appends a fleet roll-up section (counts per status class, worst SLO).
     """
     ordered = (
         sorted(snapshots, key=consumed_fraction, reverse=True)
@@ -160,4 +162,42 @@ def render_report(snapshots: list[SLOSnapshot], worst_first: bool = False) -> st
     lines.append("## Status")
     lines.append("")
     lines.extend(_status_line(snap) for snap in ordered)
+    if include_summary:
+        summary = fleet_summary(snapshots)
+        lines.extend([
+            "",
+            "## Fleet summary",
+            "",
+            f"- {summary['slos']} SLOs: {summary['healthy']} healthy, "
+            f"{summary['nearly_exhausted']} nearly exhausted, "
+            f"{summary['exhausted']} exhausted "
+            f"({summary['no_events']} without events)",
+        ])
+        if summary["worst_slo"] is not None:
+            lines.append(
+                f"- Worst: {summary['worst_slo']} "
+                f"(budget {summary['worst_consumed_fraction']:.1%} consumed)")
+        else:
+            lines.append("- Worst: n/a (no events recorded)")
     return "\n".join(lines) + "\n"
+
+
+def fleet_summary(snapshots: list[SLOSnapshot]) -> dict:
+    """Fleet roll-up across every snapshot: counts per status class.
+
+    One glance answers "how is the fleet?" instead of scanning rows.
+    ``worst_slo`` names the most-consumed SLO among those with events
+    (None when the fleet is empty or has no events at all).
+    """
+    counts = {"healthy": 0, "nearly_exhausted": 0, "exhausted": 0, "no_events": 0}
+    for snap in snapshots:
+        counts[classify_status(snap)] += 1
+    active = [snap for snap in snapshots if snap.total_events > 0]
+    worst = max(active, key=consumed_fraction, default=None)
+    return {
+        "slos": len(snapshots),
+        **counts,
+        "worst_slo": worst.name if worst else None,
+        "worst_consumed_fraction": (
+            consumed_fraction(worst) if worst else None),
+    }

@@ -223,3 +223,23 @@ def render_postmortem(incident: Incident) -> str:
         lines.append("- [ ] (no action items recorded)")
     lines.append("")
     return "\n".join(lines)
+
+
+def summarize_by_service(incidents: list[Incident]) -> dict[str, "IncidentStats"]:
+    """Per-service response-metric aggregates.
+
+    An incident lists every service it touched, so it counts toward each
+    of them; incidents with no services recorded are omitted. Answers
+    "which service eats our response time?". Services with no computable
+    incidents are omitted, matching summarize_by_severity.
+    """
+    groups: dict[str, list[Incident]] = {}
+    for incident in incidents:
+        for service in incident.services:
+            groups.setdefault(service, []).append(incident)
+    result = {}
+    for service, group in groups.items():
+        stats = summarize_incidents(group)
+        if stats is not None:
+            result[service] = stats
+    return result
