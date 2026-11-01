@@ -1,0 +1,13 @@
+[
+  {
+    "service": "cache",
+    "reason": "cache fleet being decommissioned next week",
+    "until": "2027-06-01T00:00:00Z"
+  },
+  {
+    "severity": "low",
+    "contains": "weekly report",
+    "reason": "reporting job noise, tracked as issue #114",
+    "until": "2027-06-01T00:00:00Z"
+  }
+]
