@@ -28,6 +28,32 @@ class Alert:
     labels: dict = field(default_factory=dict)
 
 
+def rules_from_dict(data: dict) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Build triage rules from a JSON mapping of severity to keywords.
+
+    Example: {"critical": ["page", "outage"], "high": ["degraded"]}.
+    Severities must come from SEVERITY_ORDER so sorting stays meaningful;
+    rules are returned most-severe-first regardless of input order. Raises
+    ValueError on unknown severities, non-list keywords, or empty lists.
+    """
+    if not isinstance(data, dict) or not data:
+        raise ValueError("rules must be a JSON object mapping severity to keywords")
+    unknown = set(data) - set(SEVERITY_ORDER)
+    if unknown:
+        raise ValueError(f"unknown severities: {sorted(unknown)} "
+                         f"(want a subset of {list(SEVERITY_ORDER)})")
+    rules = []
+    for severity in SEVERITY_ORDER:
+        if severity not in data:
+            continue
+        keywords = data[severity]
+        if not isinstance(keywords, list) or not keywords or \
+                not all(isinstance(k, str) and k for k in keywords):
+            raise ValueError(f"{severity!r} keywords must be a non-empty list of strings")
+        rules.append((severity, tuple(keywords)))
+    return tuple(rules)
+
+
 def classify_severity(summary: str, rules=_DEFAULT_RULES) -> str:
     """Classify an alert summary into a severity using keyword rules.
 

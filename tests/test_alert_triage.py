@@ -1,9 +1,31 @@
 import unittest
 
 from sre_toolkit.alert_triage import (
+    rules_from_dict,
     Alert, classify_severity, dedupe, dedupe_key, duplicate_counts, group_by_service,
     inhibit_by_critical, triage,
 )
+
+
+class TestRulesFromDict(unittest.TestCase):
+    def test_builds_rules_most_severe_first(self):
+        rules = rules_from_dict({"medium": ["flaky"], "critical": ["sev1"]})
+        self.assertEqual(rules, (("critical", ("sev1",)), ("medium", ("flaky",))))
+
+    def test_unknown_severity_rejected(self):
+        with self.assertRaises(ValueError):
+            rules_from_dict({"urgent": ["now"]})
+
+    def test_empty_and_malformed_rejected(self):
+        for bad in ({}, {"critical": []}, {"critical": "page"}, {"critical": [""]},
+                    {"critical": ["ok", 3]}):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                rules_from_dict(bad)
+
+    def test_custom_rules_drive_classification(self):
+        rules = rules_from_dict({"critical": ["sev1"]})
+        self.assertEqual(classify_severity("SEV1 on checkout", rules), "critical")
+        self.assertEqual(classify_severity("page: everything down", rules), "low")
 
 
 class TestClassifySeverity(unittest.TestCase):

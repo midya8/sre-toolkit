@@ -17,7 +17,7 @@ import argparse
 import json
 import sys
 
-from .alert_triage import Alert, dedupe_key, duplicate_counts, group_by_service, inhibit_by_critical, triage
+from .alert_triage import Alert, dedupe_key, duplicate_counts, group_by_service, inhibit_by_critical, rules_from_dict, triage
 from .burn_alerts import BurnRule, BurnSample, evaluate_rules
 from .error_budget import (
     allowed_downtime_minutes,
@@ -63,7 +63,14 @@ def _cmd_triage(args: argparse.Namespace) -> int:
     raw = json.load(sys.stdin if args.file == "-" else open(args.file))
     incoming = [Alert(**item) for item in raw]
     counts = duplicate_counts(incoming)
-    alerts = triage(incoming)
+    rules = None
+    if args.rules:
+        try:
+            rules = rules_from_dict(json.load(open(args.rules)))
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            print(f"error: bad rules file: {exc}", file=sys.stderr)
+            return 2
+    alerts = triage(incoming, rules=rules) if rules else triage(incoming)
     inhibited: list[Alert] = []
     if args.inhibit:
         alerts, inhibited = inhibit_by_critical(alerts)
@@ -295,6 +302,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("triage", help="classify alerts from a JSON file ('-' for stdin)")
     p.add_argument("file")
+    p.add_argument("--rules", metavar="FILE",
+                   help="custom severity rules: JSON object mapping severity to keywords")
     p.add_argument("--by-service", action="store_true",
                    help="group output by service with counts and worst severity")
     p.add_argument("--json", action="store_true", help="emit the triaged alerts as JSON")
