@@ -53,6 +53,8 @@ python -m sre_toolkit budget --slo 0.999 --total 10000 --bad 5
 python -m sre_toolkit downtime --slo 0.999 --days 30
 python -m sre_toolkit triage examples/alerts.json
 python -m sre_toolkit report examples/slo-snapshots.json
+python -m sre_toolkit burn examples/burn-samples.json      # exit 1 when a critical rule fires
+python -m sre_toolkit postmortem examples/incident.json
 ```
 
 ## Tests
@@ -61,9 +63,9 @@ python -m sre_toolkit report examples/slo-snapshots.json
 python -m unittest discover -s tests -v
 ```
 
-46 tests cover the budget math (including boundary and validation cases),
+52 tests cover the budget math (including boundary and validation cases),
 severity classification, dedupe, ordering, grouping, burn-rate rules,
-postmortem rendering, and report rendering.
+postmortem rendering, report rendering, and the CLI commands.
 
 ## Layout
 
@@ -74,7 +76,7 @@ sre_toolkit/
   postmortem.py     # structured incident -> Markdown postmortem
   burn_alerts.py    # multi-window burn-rate alerting rules
   report.py         # Markdown SLO status report from window snapshots
-  __main__.py       # CLI: budget / downtime / triage / report
+  __main__.py       # CLI: budget / downtime / triage / report / burn / postmortem
 tests/              # unittest suite, no external dependencies
 examples/           # sample alert input for the CLI
 ```
