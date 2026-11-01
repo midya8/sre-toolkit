@@ -93,7 +93,12 @@ def _cmd_report(args: argparse.Namespace) -> int:
         for item in raw
     ]
     print(render_report(snapshots), end="")
-    return 0
+    exhausted = any(
+        snap.total_events > 0
+        and compute_error_budget(snap.slo, snap.total_events, snap.bad_events).remaining_fraction <= 0
+        for snap in snapshots
+    )
+    return 1 if exhausted else 0
 
 
 def _burn_rules(raw: list[dict]) -> tuple[BurnRule, ...] | None:
