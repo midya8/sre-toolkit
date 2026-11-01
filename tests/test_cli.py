@@ -223,6 +223,66 @@ class TestTriageCLI(unittest.TestCase):
         self.assertIn("Service down (x2)", out)
 
 
+class TestTriageRoutesCLI(unittest.TestCase):
+    ALERTS = [
+        {"alert_id": "a1", "service": "checkout", "summary": "Service down"},
+        {"alert_id": "a2", "service": "checkout", "summary": "latency p99 above 2s"},
+        {"alert_id": "a3", "service": "gateway", "summary": "cert expires soon"},
+        {"alert_id": "a4", "service": "misc", "summary": "disk filling up"},
+    ]
+    ROUTES = {"routes": {"checkout": "payments-oncall",
+                         "gateway": "platform-oncall"},
+              "default": "sre-oncall"}
+
+    def _run_routes(self, *argv, alerts=None, routes=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            apath = Path(tmp) / "alerts.json"
+            apath.write_text(json.dumps(alerts or self.ALERTS))
+            rpath = Path(tmp) / "routes.json"
+            rpath.write_text(json.dumps(self.ROUTES if routes is None else routes))
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(["triage", str(apath), "--routes", str(rpath), *argv])
+            return code, buf.getvalue()
+
+    def test_text_owner_suffix(self):
+        code, out = self._run_routes()
+        self.assertEqual(code, 0)
+        self.assertIn("[critical] checkout             Service down -> payments-oncall", out)
+        self.assertIn("-> sre-oncall", out)  # misc lands on default
+
+    def test_by_owner_rollup_worst_first(self):
+        code, out = self._run_routes("--by-owner")
+        self.assertEqual(code, 0)
+        self.assertIn("payments-oncall", out)
+        self.assertIn("2 alerts (1 critical, 1 high)", out)
+        self.assertLess(out.index("payments-oncall"), out.index("sre-oncall"))
+
+    def test_by_owner_requires_routes(self):
+        code, out = _run(["triage", "--by-owner"], self.ALERTS)
+        self.assertEqual(code, 2)
+
+    def test_bad_routes_file_errors(self):
+        code, out = self._run_routes(routes={"routes": "nope"})
+        self.assertEqual(code, 2)
+
+    def test_json_owner_field(self):
+        code, out = self._run_routes("--json")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        owners = {a["service"]: a["owner"] for a in data}
+        self.assertEqual(owners["checkout"], "payments-oncall")
+        self.assertEqual(owners["misc"], "sre-oncall")
+
+    def test_json_by_owner_block(self):
+        code, out = self._run_routes("--by-owner", "--json")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["by_owner"][0]["owner"], "payments-oncall")
+        self.assertEqual(data["by_owner"][0]["worst_severity"], "critical")
+        self.assertEqual(len(data["alerts"]), 4)
+
+
 class TestTriageCustomRules(unittest.TestCase):
     ALERTS = [
         {"alert_id": "a1", "service": "api", "summary": "SEV1 customer impact"},
