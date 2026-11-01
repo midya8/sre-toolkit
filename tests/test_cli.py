@@ -8,6 +8,13 @@ from pathlib import Path
 from sre_toolkit.__main__ import main
 
 
+def _run_args(argv):
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        code = main(argv)
+    return code, buf.getvalue()
+
+
 def _run(argv, payload=None):
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "input.json"
@@ -16,6 +23,45 @@ def _run(argv, payload=None):
         with redirect_stdout(buf):
             code = main(argv + [str(path)])
         return code, buf.getvalue()
+
+
+class TestBudgetCLI(unittest.TestCase):
+    def test_exhaustion_projection(self):
+        code, out = _run_args(
+            ["budget", "--slo", "0.999", "--total", "10000", "--bad", "5",
+             "--window-days", "30"])
+        self.assertEqual(code, 0)
+        self.assertIn("Exhaustion:        ~15.0 days at current burn", out)
+
+    def test_no_projection_without_window(self):
+        _, out = _run_args(["budget", "--slo", "0.999", "--total", "10000", "--bad", "5"])
+        self.assertNotIn("Exhaustion", out)
+
+    def test_zero_burn_not_projected(self):
+        _, out = _run_args(
+            ["budget", "--slo", "0.999", "--total", "10000", "--bad", "0",
+             "--window-days", "30"])
+        self.assertIn("not projected (zero burn)", out)
+
+    def test_exhausted_budget_exits_1(self):
+        code, out = _run_args(
+            ["budget", "--slo", "0.999", "--total", "1000", "--bad", "10",
+             "--window-days", "30"])
+        self.assertEqual(code, 1)
+        self.assertIn("budget already exhausted", out)
+
+
+class TestDowntimeCLI(unittest.TestCase):
+    def test_table_without_days(self):
+        code, out = _run_args(["downtime", "--slo", "0.999"])
+        self.assertEqual(code, 0)
+        self.assertIn("30 days:     43.2 minutes", out)
+        self.assertIn(" 1 days:", out.replace("   1 days:", " 1 days:"))
+
+    def test_single_window_unchanged(self):
+        code, out = _run_args(["downtime", "--slo", "0.999", "--days", "30"])
+        self.assertEqual(code, 0)
+        self.assertIn("Allowed downtime: 43.2 minutes over 30 days", out)
 
 
 class TestBurnCLI(unittest.TestCase):
