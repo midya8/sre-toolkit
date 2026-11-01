@@ -1,0 +1,12 @@
+{
+  "name": "Checkout availability",
+  "service": "checkout-api",
+  "target": 0.999,
+  "window_days": 30,
+  "sli": "Share of checkout requests completing without a 5xx, measured at the load balancer.",
+  "description": "Checkout is the revenue path; its availability SLO is the strictest in the platform.",
+  "alert_thresholds": [
+    "page at 14.4x burn over 1h + 5m",
+    "ticket at 6x burn over 6h + 30m"
+  ]
+}
