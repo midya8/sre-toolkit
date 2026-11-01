@@ -97,6 +97,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
             slo=float(item["slo"]),
             total_events=int(item["total"]),
             bad_events=int(item["bad"]),
+            window_days=float(item["window_days"]) if "window_days" in item else None,
         )
         for item in raw
     ]
