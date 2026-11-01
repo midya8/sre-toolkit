@@ -17,7 +17,7 @@ import argparse
 import json
 import sys
 
-from .alert_triage import Alert, dedupe_key, duplicate_counts, group_by_service, triage
+from .alert_triage import Alert, dedupe_key, duplicate_counts, group_by_service, inhibit_by_critical, triage
 from .burn_alerts import BurnRule, BurnSample, evaluate_rules
 from .error_budget import (
     allowed_downtime_minutes,
@@ -64,18 +64,31 @@ def _cmd_triage(args: argparse.Namespace) -> int:
     incoming = [Alert(**item) for item in raw]
     counts = duplicate_counts(incoming)
     alerts = triage(incoming)
+    inhibited: list[Alert] = []
+    if args.inhibit:
+        alerts, inhibited = inhibit_by_critical(alerts)
 
     def _suffix(alert: Alert) -> str:
         n = counts[dedupe_key(alert)]
         return f" (x{n})" if n > 1 else ""
 
     if args.json:
-        print(json.dumps([
+        payload = {"alerts": [
             {"alert_id": a.alert_id, "service": a.service,
              "summary": a.summary, "severity": a.severity,
              "occurrences": counts[dedupe_key(a)]}
             for a in alerts
-        ], indent=2))
+        ]}
+        if args.inhibit:
+            payload["inhibited"] = [
+                {"alert_id": a.alert_id, "service": a.service,
+                 "summary": a.summary, "severity": a.severity,
+                 "occurrences": counts[dedupe_key(a)]}
+                for a in inhibited
+            ]
+            print(json.dumps(payload, indent=2))
+        else:
+            print(json.dumps(payload["alerts"], indent=2))
         return 0
     if args.by_service:
         for service, group in sorted(group_by_service(alerts).items()):
@@ -87,6 +100,11 @@ def _cmd_triage(args: argparse.Namespace) -> int:
         return 0
     for alert in alerts:
         print(f"[{alert.severity:8s}] {alert.service:20s} {alert.summary}{_suffix(alert)}")
+    if inhibited:
+        print(f"({len(inhibited)} alert{'' if len(inhibited) == 1 else 's'} "
+              f"inhibited: symptoms of a critical on the same service)")
+        for alert in inhibited:
+            print(f"  [{alert.severity:8s}] {alert.service:20s} {alert.summary}{_suffix(alert)}")
     return 0
 
 
@@ -247,6 +265,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--by-service", action="store_true",
                    help="group output by service with counts and worst severity")
     p.add_argument("--json", action="store_true", help="emit the triaged alerts as JSON")
+    p.add_argument("--inhibit", action="store_true",
+                   help="suppress lower-severity alerts on services with an active critical")
     p.set_defaults(func=_cmd_triage)
 
     p = sub.add_parser("report", help="Markdown SLO status report from a JSON file ('-' for stdin)")
