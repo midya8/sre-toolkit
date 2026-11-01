@@ -1,0 +1,21 @@
+{
+  "title": "Checkout latency spike during deploy",
+  "severity": "SEV2",
+  "started": "2026-10-28 14:05 UTC",
+  "detected": "2026-10-28 14:12 UTC",
+  "resolved": "2026-10-28 14:47 UTC",
+  "services": ["checkout-api", "payments-db"],
+  "summary": "Checkout p99 latency rose from 300ms to 4.2s for 42 minutes during a schema migration.",
+  "impact": "2.1% of checkout attempts timed out; no payments were double-charged.",
+  "root_cause": "A blocking index build on payments-db during the deploy serialized write queries.",
+  "timeline": [
+    ["14:05", "Deploy of release 2026.10.28 begins"],
+    ["14:12", "Burn-rate alert pages on-call"],
+    ["14:20", "Migration identified as the lock source"],
+    ["14:47", "Index build completes; latency recovers"]
+  ],
+  "action_items": [
+    "Run index builds concurrently with CONCURRENTLY flag",
+    "Add a pre-deploy check for blocking migrations"
+  ]
+}
