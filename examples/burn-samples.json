@@ -1,0 +1,9 @@
+{
+  "slo": 0.999,
+  "samples": [
+    {"window_hours": 1, "total": 360000, "bad": 5200},
+    {"window_hours": 0.0833, "total": 30000, "bad": 440},
+    {"window_hours": 6, "total": 2160000, "bad": 15000},
+    {"window_hours": 0.5, "total": 180000, "bad": 2200}
+  ]
+}
