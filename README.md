@@ -6,76 +6,36 @@ Small, dependency-free Python utilities for day-to-day SRE work: error-budget
 math, alert triage, and postmortem generation. Standard library only - no
 `pip install` needed, works anywhere Python 3.10+ runs.
 
-## Why
+## Commands
 
-The math and the documents are the boring parts of incident work that still
-need to be right. This toolkit makes them scriptable:
+| Task | Command | Output and exit status |
+|---|---|---|
+| Check an error budget | `budget`, `downtime` | Budget consumed, burn rate and allowed downtime; `budget` exits 1 when exhausted |
+| Sort an alert list | `triage` | Keyword severity, deduplicated occurrence counts, optional silences, inhibition and team routing |
+| Review SLO snapshots | `report` | Markdown or JSON, optional fleet summary and worst-first sorting; exits 1 if any budget is exhausted |
+| Evaluate burn rules | `burn` | Rules firing on both supplied long and short windows; optional policy template or time-series replay |
+| Write an incident record | `postmortem` | Markdown or JSON with timestamp-derived response metrics |
+| Aggregate incident records | `metrics` | Mean, median and nearest-rank p90 TTD/TTR; optional severity, service or ISO-week breakdowns |
+| Write an SLO definition | `slo-doc` | Markdown or JSON describing the target, window, SLI and alerting policy |
 
-- **Error budgets** - compute budget fraction, consumed share, burn rate,
-  allowed downtime, and how many bad events the window still affords
-  ("5 of 10 allowed") for an SLO, with input validation instead of silent
-  garbage.
-  `budget` exits 1 when the budget is exhausted (a scriptable health gate)
-  and both `budget` and `downtime` emit `--json` for pipelines.
-- **Alert triage** - classify alerts by keyword rules, dedupe repeats while
-  keeping each distinct alert's fire count (`(x12)` in the CLI, `occurrences`
-  in JSON), sort by severity so the page-worthy problem is on top, and
-  `--inhibit` suppresses lower-severity symptoms on a service with an active
-  critical, the way Alertmanager inhibit rules keep a known outage from
-  paging for every symptom. `--rules rules.json` swaps the built-in
-  keywords for a team's own vocabulary (a JSON object mapping severity to
-  keywords), and `--silences silences.json` applies Alertmanager-style
-  silences - bounded, reasoned suppressions matched on service, severity
-  and/or summary substring - moving matched alerts into a visible
-  silenced section (with the reason) instead of the main list.
-  `--routes routes.json` maps each service to its owning team (exact
-  match, with a default owner for everything else), tagging each alert
-  with its owner in text and JSON, and `--by-owner` rolls the board up
-  per team, worst severity first, so a page storm fans out to the right
-  on-call rotations.
-- **Postmortems** - render a consistent Markdown postmortem from structured
-  incident data, with timeline, action-item checklists, and response metrics
-  (time to detect, time to resolve, total duration) computed automatically
-  from the incident timestamps when they are parseable, also available as
-  `--json` for pipelines. The `metrics` CLI
-  aggregates TTD and TTR across a list of incidents for MTTR tracking -
-  mean, median and nearest-rank p90, with a per-severity breakdown because
-  MTTR only means something split by severity - skipping incidents without
-  parseable timestamps, with `--json` for dashboards. `--by-week` buckets
-  the same aggregates by ISO week of resolution, answering "are we getting
-  faster?" as a trend instead of one flat number. `metrics --action-items`
-  adds a follow-through report: incidents list `action_items` (plain strings
-  or `{"item": ..., "done": true}` objects), and the report groups open items
-  per incident with days since resolution, exits 1 when any incident resolved
-  more than `--stale-days` (default 14) ago still has open items, and surfaces
-  the same data as an `action_items` block in `--json`.
-- **Burn-rate alerts** - multi-window alerting (page at 14.4x over 1h+5m,
-  ticket at 6x over 6h+30m) that only fires when burn is elevated on both the
-  long and short window, so blips never page anyone. The `burn` CLI accepts
-  custom rules in its JSON spec when the defaults do not fit a service, and
-  emits the firing rules as JSON (`--json`) for paging pipelines.
-  `burn --suggest --slo 0.999 --window-days 30` emits a ready-to-edit policy
-  template: the standard three-tier table (page at 2% of budget in 1h, fast
-  ticket at 5% in 6h, slow ticket at 10% in 3d) with burn thresholds scaled
-  to the window, ready to drop into a burn spec's `rules`.
-  `burn spec.json --replay` replays a time series of timestamped
-  total/bad buckets through the rules: at every bucket tick each rule's
-  long and short trailing windows are re-evaluated, and the report lists
-  every firing interval per rule (start, end, tick count) - the "would
-  this policy have paged us, and for how long" answer when tuning
-  thresholds against a past incident. Exits 1 when any critical rule
-  fired during the replay, and emits the intervals under `--json`.
-- **Status reports** - render a Markdown SLO status report (table plus
-  plain-language status lines) from a JSON list of SLO window snapshots;
-  snapshots carrying their `window_days` also get an exhaustion projection
-  ("budget exhausts in ~3.0 days at current burn"). Exits 1 when any budget
-  is exhausted, so it can gate a cron job or CI pipeline, `--json`
-  emits the same per-SLO detail for dashboards and tooling, and
-  `--worst-first` sorts by budget consumed so long fleet reviews surface
-  the SLOs that need action first.
-- **SLO documents** - render an SLO definition (target, window, SLI, error
-  budget, alerting policy) as Markdown, so objectives live reviewably in
-  the repo next to the service they cover.
+`triage --rules` replaces the built-in keyword vocabulary. `--silences` keeps
+matched alerts in a visible section with a reason, rather than deleting them.
+`--routes` assigns owners; `--by-owner` groups the result by team. Inhibition
+suppresses lower-severity symptoms on a service with an active critical alert.
+These rules classify supplied records; they do not establish an incident's cause.
+
+The default burn rules use 14.4x over 1h and 5m for a page, and 6x over 6h and
+30m for a ticket. Both windows must meet the threshold. This reduces sensitivity
+to some short spikes, but is not a guarantee that a short spike cannot page.
+`burn --suggest` scales a three-tier template to the SLO window. `burn --replay`
+reports firing intervals at bucket ticks and exits 1 if any critical rule fired.
+It evaluates supplied samples, not a live monitoring service.
+
+`metrics --action-items` lists open actions with days since resolution. It exits
+1 when a resolved incident older than `--stale-days` (default 14) still has open
+items. Records without parseable timestamps are skipped for response-time
+aggregates. An exhaustion projection in `report` assumes the current burn rate
+continues; it is not a forecast.
 
 ## Usage
 
