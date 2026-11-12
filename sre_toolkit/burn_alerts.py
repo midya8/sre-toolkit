@@ -1,8 +1,8 @@
 """Multi-window burn-rate alerting for one SLO.
 
 Implements the classic SRE-workbook pattern: an alert fires only when the
-burn rate is elevated over BOTH a long window and a short window, so a
-brief blip cannot page anyone and a slow leak still gets caught.
+burn rate is elevated over BOTH a long window and a short window. This
+filters some short spikes; it does not guarantee that a spike cannot page.
 
 Default rules:
     page   - burn >= 14.4x sustained over 1h and 5m   (budget gone in 2 days)
