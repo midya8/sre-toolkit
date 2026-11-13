@@ -2,9 +2,7 @@
 
 [![CI](https://github.com/midya8/sre-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/midya8/sre-toolkit/actions/workflows/ci.yml)
 
-Small, dependency-free Python utilities for day-to-day SRE work: error-budget
-math, alert triage, and postmortem generation. Standard library only - no
-`pip install` needed, works anywhere Python 3.10+ runs.
+A small set of Python utilities for the SRE work that kept coming up: error-budget math, alert triage, and postmortems. Standard library only, so there's nothing to install — it runs anywhere Python 3.10+ does.
 
 ## Commands
 
@@ -18,24 +16,11 @@ math, alert triage, and postmortem generation. Standard library only - no
 | Aggregate incident records | `metrics` | Mean, median and nearest-rank p90 TTD/TTR; optional severity, service or ISO-week breakdowns |
 | Write an SLO definition | `slo-doc` | Markdown or JSON describing the target, window, SLI and alerting policy |
 
-`triage --rules` replaces the built-in keyword vocabulary. `--silences` keeps
-matched alerts in a visible section with a reason, rather than deleting them.
-`--routes` assigns owners; `--by-owner` groups the result by team. Inhibition
-suppresses lower-severity symptoms on a service with an active critical alert.
-These rules classify supplied records; they do not establish an incident's cause.
+Triage is keyword-based out of the box, but `triage --rules` lets you swap in your own vocabulary. `--silences` doesn't delete matched alerts — it moves them into a visible section with the reason attached. `--routes` assigns owners, and `--by-owner` rolls the result up by team. When a service already has a critical alert open, inhibition quiets the lower-severity symptoms underneath it. One thing to be clear about: this classifies the records you hand it. It doesn't tell you what caused the incident.
 
-The default burn rules use 14.4x over 1h and 5m for a page, and 6x over 6h and
-30m for a ticket. Both windows must meet the threshold. This reduces sensitivity
-to some short spikes, but is not a guarantee that a short spike cannot page.
-`burn --suggest` scales a three-tier template to the SLO window. `burn --replay`
-reports firing intervals at bucket ticks and exits 1 if any critical rule fired.
-It evaluates supplied samples, not a live monitoring service.
+The default burn rules page at 14.4x over 1h and 5m, and open a ticket at 6x over 6h and 30m — both windows have to cross the threshold before anything fires. That filters out a lot of short spikes, though a sharp enough one can still page. `burn --suggest` scales a three-tier policy template to your SLO window, and `burn --replay` walks a time series and reports the firing intervals at each bucket tick, exiting 1 if any critical rule fired. It works off the samples you give it, not a live monitoring feed.
 
-`metrics --action-items` lists open actions with days since resolution. It exits
-1 when a resolved incident older than `--stale-days` (default 14) still has open
-items. Records without parseable timestamps are skipped for response-time
-aggregates. An exhaustion projection in `report` assumes the current burn rate
-continues; it is not a forecast.
+`metrics --action-items` lists the open actions with days since resolution, and exits 1 if a resolved incident older than `--stale-days` (default 14) still has open items. Records without a parseable timestamp just get skipped from the response-time aggregates. And the exhaustion projection in `report` is a straight-line extrapolation — it assumes the current burn rate continues, so don't read it as a forecast.
 
 ## Usage
 
@@ -90,13 +75,7 @@ python -m sre_toolkit slo-doc examples/slo-definition.json --json   # machine-re
 python -m unittest discover -s tests -v
 ```
 
-254 tests cover the budget math (including boundary and validation cases),
-severity classification, dedupe, ordering, grouping, severity and noise
-roll-ups, silence validation, matching and expiry, alert ownership routing and roll-ups, burn-rate rules, policy suggestion and
-time-series replay,
-postmortem rendering, report rendering with fleet summaries, SLO document
-rendering (Markdown and JSON), metrics aggregation (per severity, per
-service, per week), action-item follow-through, and the CLI commands.
+254 tests cover the budget math (including boundary and validation cases), severity classification, dedupe, ordering, grouping, severity and noise roll-ups, silence validation, matching and expiry, alert ownership routing and roll-ups, burn-rate rules, policy suggestion and time-series replay, postmortem rendering, report rendering with fleet summaries, SLO document rendering (Markdown and JSON), metrics aggregation (per severity, per service, per week), action-item follow-through, and the CLI commands.
 
 ## Layout
 
